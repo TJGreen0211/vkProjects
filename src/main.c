@@ -998,40 +998,6 @@ void createCommandPool() {
 
 }
 
-VkCommandBuffer beginSingleTimeCommands() {
-	VkCommandBufferAllocateInfo allocInfo = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandPool = commandPool,
-		.commandBufferCount = 1,
-	};
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	return commandBuffer;
-}
-
-void endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo = {
-		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.commandBufferCount = 1,
-		.pCommandBuffers = &commandBuffer,
-	};
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(graphicsQueue);
-
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
-}
-
 void createCommandBuffer() {
 	commandBuffers = malloc(globalImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
@@ -1149,18 +1115,18 @@ void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyF
 	vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 }
 
-void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-
-	VkBufferCopy copyRegion = {
-		.srcOffset = 0,
-		.dstOffset = 0,
-		.size = size,
-	};
-	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-	endSingleTimeCommands(commandBuffer);
-}
+//void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+//	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+//
+//	VkBufferCopy copyRegion = {
+//		.srcOffset = 0,
+//		.dstOffset = 0,
+//		.size = size,
+//	};
+//	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+//
+//	endSingleTimeCommands(device, graphicsQueue, commandBuffer, commandPool);
+//}
 
 void createVertexBuffer() {
 	VkDeviceSize size = sizeof(vertices);
@@ -1180,7 +1146,7 @@ void createVertexBuffer() {
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer, &vertexBufferMemory);
-	copyBuffer(stagingBuffer, vertexBuffer, size);
+	copyBuffer(device, commandPool, stagingBuffer, vertexBuffer, size);
 
 	vkDestroyBuffer(device, stagingBuffer, NULL);
 	vkFreeMemory(device, stagingBufferMemory, NULL);
@@ -1199,7 +1165,7 @@ void createIndexBuffer() {
 	vkUnmapMemory(device, stagingBufferMemory);
 
 	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
-	copyBuffer(stagingBuffer, indexBuffer, size);
+	copyBuffer(device, commandPool, stagingBuffer, indexBuffer, size);
 
 	vkDestroyBuffer(device, stagingBuffer, NULL);
 	vkFreeMemory(device, stagingBufferMemory, NULL);
@@ -1375,7 +1341,7 @@ int hasStencilComponent(VkFormat format) {
 }
 
 void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 	VkImageMemoryBarrier barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -1436,11 +1402,11 @@ void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayo
 		1, &barrier
 	);
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(device, graphicsQueue, commandBuffer, commandPool);
 }
 
 void copyBufferToImage(VkBuffer buffer, VkImage image, unsigned int width, unsigned int height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
 	VkBufferImageCopy region = {
 		.bufferOffset = 0,
@@ -1457,7 +1423,7 @@ void copyBufferToImage(VkBuffer buffer, VkImage image, unsigned int width, unsig
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(device, graphicsQueue, commandBuffer, commandPool);
 }
 
 void createTextureImage() {
