@@ -10,6 +10,8 @@
 
 #include "linearAlg.h"
 #include "arcballCamera.h"
+#include "window.h"
+#include "buffer.h"
 
 #define _CRT_SECURE_NO_DEPRECATE 1
 //#define _CRT_SECURE_NO_WARNINGS 1
@@ -24,14 +26,6 @@
 #else
 	const unsigned int enableValidationLayers = 1;
 #endif
-
-typedef struct vertexData {
-	float pos[3];
-	float color[3];
-	float texCoord[2];
-	//VkVertexInputBindingDescription (*getBindingDescription);
-	//VkVertexInputAttributeDescription (*getAttributeDescriptions);
-} vertexData;
 
 float model[16];
 //double view[4][4];
@@ -1582,23 +1576,15 @@ void initVulkan() {
 	createTextureImage();
 	createTextureImageView();
 	createTextureSampler();
+
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffer();
+
 	createDescriptorPool();
 	createDescriptorSets();
 	createCommandBuffer();
 	createSemaphores();
-}
-
-int getWindowHeight() {
-	const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-	return mode->height;
-}
-
-int getWindowWidth() {
-	const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-	return mode->width;
 }
 
 void recreateSwapChain() {
@@ -1621,15 +1607,6 @@ void recreateSwapChain() {
 
 static void onWindowResized(GLFWwindow *window, int width, int height) {
 	recreateSwapChain();
-}
-
-void initWindow() {
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	window = glfwCreateWindow(400, 400, "Vulkan", NULL, NULL);
-
-	glfwSetWindowSizeCallback(window, onWindowResized);
 }
 
 void updateUniformBuffer(double *deltaTime, double *lastFrame, uint32_t currentImage) {
@@ -1748,7 +1725,8 @@ void mainLoop() {
 }
 
 void run() {
-	initWindow();
+	window = initWindow();
+	glfwSetWindowSizeCallback(window, onWindowResized);
 	if (window == NULL)
 	{
 		printf("Failed to create GLFW window.");

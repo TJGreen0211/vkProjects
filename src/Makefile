@@ -7,7 +7,9 @@ MAKE_DIR = %cd%
 
 SRCS = Main.c \
 	linearAlg.c \
-	arcballCamera.c
+	arcballCamera.c \
+	window.c \
+	buffer.c
 
 
 #SRCS := $(shell echo dir1/*.c)
