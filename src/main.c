@@ -27,6 +27,9 @@
 	const unsigned int enableValidationLayers = 1;
 #endif
 
+double deltaTime = 0.0;
+double lastFrame = 0.0;
+
 float model[16];
 //double view[4][4];
 //double projection[4][4];
@@ -1533,15 +1536,12 @@ static void onWindowResized(GLFWwindow *window, int width, int height) {
 	recreateSwapChain();
 }
 
-void updateUniformBuffer(double *deltaTime, double *lastFrame, uint32_t currentImage) {
-	double currentFrame = glfwGetTime();
-	*deltaTime = currentFrame - *lastFrame;
-	*lastFrame = currentFrame;
+void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
-	mat4 m = scale(0.5);
+	mat4 m = translate(1.0, -1.0, 1.0);
 	mat4 v = getViewMatrix();
-	mat4 p = perspective(45.0, swapChainExtent.width / swapChainExtent.height, 0.5, 100000);
-	p.m[1][1] *= -1;
+	mat4 p = perspective(45.0, swapChainExtent.width / swapChainExtent.height, 0.1, 100000);
+	//p.m[1][1] *= -1;
 
 	uniformBufferObject ubo[1] = {
 		{{
@@ -1575,14 +1575,14 @@ void updateUniformBuffer(double *deltaTime, double *lastFrame, uint32_t currentI
 	//printf("\n");
 }
 
-
 void drawFrame() {
-	double deltaTime = 0.0;
-	double lastFrame = 0.0;
+
+	double currentFrame = glfwGetTime();
+	deltaTime = currentFrame - lastFrame;
+	lastFrame = currentFrame;
 
 	uint32_t imageIndex;
 	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
 
 	if(result == VK_ERROR_OUT_OF_DATE_KHR) {
 		recreateSwapChain();
@@ -1592,7 +1592,8 @@ void drawFrame() {
 		printf("Failed to acquire swap chain image.\n");
 		cleanup();
 	}
-	updateUniformBuffer(&deltaTime, &lastFrame, imageIndex);
+	updateUniformBuffer(deltaTime, imageIndex);
+	doMovement(deltaTime);
 
 	VkSubmitInfo submitInfo = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,

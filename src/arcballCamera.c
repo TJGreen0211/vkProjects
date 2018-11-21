@@ -4,7 +4,7 @@ const double toRadians = M_PI / 180.0;
 
 static double Yaw = -90.0f;
 static double Pitch = 0.0f;
-static double MovementSpeed = 10.1f;
+static double MovementSpeed = 0.1f;
 static double maxSpeed = 2000.0f;
 static double MouseSensitivity = 0.6f;
 static double mouseZoom = 1.0f;
@@ -77,7 +77,9 @@ void processKeyboard(enum Camera_Movement direction, double deltaTime, double de
 {
 	if(deltaSpeed > maxSpeed)
 		deltaSpeed = maxSpeed;
-	double velocity = MovementSpeed * deltaTime + deltaSpeed;
+	double velocity = MovementSpeed * deltaTime;// + deltaSpeed;
+
+	//printf("DeltaTime: %f\n", deltaTime);
 
     if (direction == FORWARD)
         Position = plusequalvec3(Position, scalarMultvec3(Front, velocity));

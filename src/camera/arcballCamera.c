@@ -4,7 +4,7 @@ const float toRadians = M_PI / 180.0;
 
 static GLfloat Yaw = -90.0f;
 static GLfloat Pitch = 0.0f;
-static GLfloat MovementSpeed = 10.1f;
+static GLfloat MovementSpeed = 0.001f;
 static GLfloat maxSpeed = 2000.0f;
 static GLfloat MouseSensitivity = 0.6f;
 static GLfloat mouseZoom = 1.0f;
@@ -75,6 +75,7 @@ void updateCameraVectors()
 
 void processKeyboard(enum Camera_Movement direction, GLfloat deltaTime, GLfloat deltaSpeed)
 {
+	printf("DeltaTime: %f\n", deltaTime);
 	if(deltaSpeed > maxSpeed)
 		deltaSpeed = maxSpeed;
 	GLfloat velocity = MovementSpeed * deltaTime + deltaSpeed;
