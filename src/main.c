@@ -53,6 +53,12 @@ typedef struct QueueFamilyIndices {
 	int (*isComplete)(int, int);
 } QueueFamilyIndices;
 
+typedef struct vkGraphics {
+	VkDevice device;
+} vkGraphics;
+
+vkGraphics graphics;
+
 int checkComplete(int graphicsVal, int presentVal) {
 	return graphicsVal >= 0 && presentVal >= 0;
 }

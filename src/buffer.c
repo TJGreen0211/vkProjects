@@ -97,15 +97,17 @@ void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize 
 //void createVertexBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, vertexData vertices, VkDeviceSize size, VkBuffer *buffer, VkDeviceMemory *bufferMemory) {
 //	VkBuffer stagingBuffer;
 //	VkDeviceMemory stagingBufferMemory;
-//	createBuffer(vkDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+//	createBuffer(physicalDev, vkDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+//	//createBuffer(vkDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 //
 //	void *data;
 //	vkMapMemory(vkDevice, stagingBufferMemory, 0, size, 0, &data);
 //	memcpy(data, vertices, size);
 //	vkUnmapMemory(vkDevice, stagingBufferMemory);
 //
-//	createBuffer(vkDevice, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer, &bufferMemory);
-//	copyBuffer(vkDevice, stagingBuffer, buffer, size);
+//	createBuffer(physicalDev, vkDevice, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer, &bufferMemory);
+//	//createBuffer(vkDevice, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer, &bufferMemory);
+//	copyBuffer(vkDevice, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, size);
 //
 //	vkDestroyBuffer(vkDevice, stagingBuffer, NULL);
 //	vkFreeMemory(vkDevice, stagingBufferMemory, NULL);

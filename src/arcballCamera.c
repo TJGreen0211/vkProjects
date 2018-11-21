@@ -28,9 +28,12 @@ mat4 getViewMatrix()
 	d = normalizevec3(d);
 	arcYaw = asin(-d.y) * rad;
 	arcPitch = atan2(d.x, -d.z) * rad;
+	//arcPitch = arcPitch - 180.0;
 	rxry = multiplymat4(rotateX(arcYaw), rotateY(arcPitch));
 
-	return multiplymat4(rxry, tr);
+	//printf("DeltaTime: %f\n", arcYaw);
+
+	return tr;//multiplymat4(rxry, tr);
 }
 
 vec3 getCamera() {
