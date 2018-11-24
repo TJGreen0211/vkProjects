@@ -9,7 +9,11 @@ SRCS = Main.c \
 	linearAlg.c \
 	arcballCamera.c \
 	window.c \
-	buffer.c
+	buffer.c \
+	instance.c \
+	device.c \
+	swapChain.c \
+	textures.c
 
 
 #SRCS := $(shell echo dir1/*.c)

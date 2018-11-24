@@ -12,6 +12,10 @@
 #include "arcballCamera.h"
 #include "window.h"
 #include "buffer.h"
+#include "instance.h"
+#include "device.h"
+#include "swapChain.h"
+#include "textures.h"
 
 #define _CRT_SECURE_NO_DEPRECATE 1
 //#define _CRT_SECURE_NO_WARNINGS 1
@@ -40,34 +44,22 @@ typedef struct uniformBufferObject {
 	float projection[16];
 } uniformBufferObject;
 
-typedef struct swapChainSupportDetails {
-	VkSurfaceCapabilitiesKHR capabilities;
-	VkSurfaceFormatKHR *formats;
-	VkPresentModeKHR *presentModes;
-} swapChainSupportDetails;
-
-
-typedef struct QueueFamilyIndices {
-	int graphicsFamily;
-	int presentFamily;
-	int (*isComplete)(int, int);
-} QueueFamilyIndices;
-
 typedef struct vkGraphics {
 	VkDevice device;
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+	VkInstance instance;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice physicalDevice;
+
+	unsigned int deviceImageCount;
 } vkGraphics;
 
 vkGraphics graphics;
 
-int checkComplete(int graphicsVal, int presentVal) {
-	return graphicsVal >= 0 && presentVal >= 0;
-}
-
 const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
-unsigned int globalImageCount;
 
 const vertexData vertices[8] = {
 	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
@@ -87,12 +79,6 @@ const uint16_t vertexIndices[12] = {
 	4, 5, 6, 6, 7, 4
 };
 
-VkInstance instance;
-VkSurfaceKHR surface;
-VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-VkDevice device;
-VkQueue graphicsQueue;
-VkQueue presentQueue;
 VkSwapchainKHR swapChain;
 VkImage *swapChainImages;
 VkFormat swapChainImageFormat;
@@ -170,223 +156,59 @@ void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT
 }
 
 void cleanupSwapChain() {
-	for(unsigned int i = 0; i < globalImageCount; i++) {
-		vkDestroyFramebuffer(device, swapChainFramebuffers[i], NULL);
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+		vkDestroyFramebuffer(graphics.device, swapChainFramebuffers[i], NULL);
 	}
-	vkFreeCommandBuffers(device, commandPool, globalImageCount, commandBuffers);
+	vkFreeCommandBuffers(graphics.device, commandPool, graphics.deviceImageCount, commandBuffers);
 
-	vkDestroyPipeline(device, graphicsPipeline, NULL);
-	vkDestroyPipelineLayout(device, pipelineLayout, NULL);
-	vkDestroyRenderPass(device, renderPass, NULL);
+	vkDestroyPipeline(graphics.device, graphicsPipeline, NULL);
+	vkDestroyPipelineLayout(graphics.device, pipelineLayout, NULL);
+	vkDestroyRenderPass(graphics.device, renderPass, NULL);
 
-	for(unsigned int i = 0; i < globalImageCount; i++) {
-		vkDestroyImageView(device, swapChainImageViews[i], NULL);
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+		vkDestroyImageView(graphics.device, swapChainImageViews[i], NULL);
 	}
 
-	vkDestroySwapchainKHR(device, swapChain, NULL);
+	vkDestroySwapchainKHR(graphics.device, swapChain, NULL);
 }
 
 void cleanup() {
 	cleanupSwapChain();
-	vkDestroyImageView(device, depthImageView, NULL);
-    vkDestroyImage(device, depthImage, NULL);
-    vkFreeMemory(device, depthImageMemory, NULL);
+	vkDestroyImageView(graphics.device, depthImageView, NULL);
+    vkDestroyImage(graphics.device, depthImage, NULL);
+    vkFreeMemory(graphics.device, depthImageMemory, NULL);
 
-	vkDestroySampler(device, textureSampler, NULL);
-	vkDestroyImageView(device, textureImageView, NULL);
-	vkDestroyImage(device, textureImage, NULL);
-	vkFreeMemory(device, textureImageMemory, NULL);
+	vkDestroySampler(graphics.device, textureSampler, NULL);
+	vkDestroyImageView(graphics.device, textureImageView, NULL);
+	vkDestroyImage(graphics.device, textureImage, NULL);
+	vkFreeMemory(graphics.device, textureImageMemory, NULL);
 
-	vkDestroyDescriptorPool(device, descriptorPool, NULL);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
+	vkDestroyDescriptorPool(graphics.device, descriptorPool, NULL);
+	vkDestroyDescriptorSetLayout(graphics.device, descriptorSetLayout, NULL);
 
-	for (unsigned int i = 0; i < globalImageCount; i++) {
-		vkDestroyBuffer(device, uniformBuffer[i], NULL);
-		vkFreeMemory(device, uniformBufferMemory[i], NULL);
+	for (unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+		vkDestroyBuffer(graphics.device, uniformBuffer[i], NULL);
+		vkFreeMemory(graphics.device, uniformBufferMemory[i], NULL);
 	}
 
-	vkDestroyBuffer(device, indexBuffer, NULL);
-	vkFreeMemory(device, indexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, indexBuffer, NULL);
+	vkFreeMemory(graphics.device, indexBufferMemory, NULL);
 
-	vkDestroyBuffer(device, vertexBuffer, NULL);
-	vkFreeMemory(device, vertexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, vertexBuffer, NULL);
+	vkFreeMemory(graphics.device, vertexBufferMemory, NULL);
 
-	vkDestroySemaphore(device, renderFinishedSemaphore, NULL);
-	vkDestroySemaphore(device, imageAvailableSemaphore, NULL);
-	vkDestroyCommandPool(device, commandPool, NULL);
+	vkDestroySemaphore(graphics.device, renderFinishedSemaphore, NULL);
+	vkDestroySemaphore(graphics.device, imageAvailableSemaphore, NULL);
+	vkDestroyCommandPool(graphics.device, commandPool, NULL);
 
-	vkDestroyDevice(device, NULL);
-	DestroyDebugReportCallbackEXT(instance, callback, NULL);
-	vkDestroySurfaceKHR(instance, surface, NULL);
-	vkDestroyInstance(instance, NULL);
+	vkDestroyDevice(graphics.device, NULL);
+	DestroyDebugReportCallbackEXT(graphics.instance, callback, NULL);
+	vkDestroySurfaceKHR(graphics.instance, graphics.surface, NULL);
+	vkDestroyInstance(graphics.instance, NULL);
 
 	glfwDestroyWindow(window);
 	glfwTerminate();
 	printf("Cleanup done\n");
-}
-
-unsigned int presentModeCount;
-unsigned int formatCount;
-swapChainSupportDetails querySwapChainSupport(VkPhysicalDevice vkDevice) {
-	swapChainSupportDetails details;
-
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkDevice, surface, &details.capabilities);
-
-
-	vkGetPhysicalDeviceSurfaceFormatsKHR(vkDevice, surface, &formatCount, NULL);
-
-	if(formatCount != 0) {
-		details.formats = malloc(formatCount*sizeof(details.formats));
-		vkGetPhysicalDeviceSurfaceFormatsKHR(vkDevice, surface, &formatCount, details.formats);
-	}
-	else {
-		details.formats = malloc(sizeof(details.formats));
-		details.formats = NULL;
-	}
-
-	vkGetPhysicalDeviceSurfacePresentModesKHR(vkDevice, surface, &presentModeCount, NULL);
-
-	if(presentModeCount != 0) {
-		details.presentModes = malloc(formatCount*sizeof(details.presentModes));
-		vkGetPhysicalDeviceSurfacePresentModesKHR(vkDevice, surface, &presentModeCount, details.presentModes);
-	}
-	else {
-		details.presentModes = malloc(sizeof(details.presentModes));
-		details.presentModes = NULL;
-	}
-
-	return details;
-}
-
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats) {
-	if(availableFormats != NULL && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
-		VkSurfaceFormatKHR newFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR};
-		return newFormat;
-	}
-
-	for(unsigned int i = 0; i < formatCount; i++) {
-		if(availableFormats[i].format == VK_FORMAT_B8G8R8A8_UNORM && availableFormats[i].colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-			return availableFormats[i];
-		}
-	}
-
-	return availableFormats[0];
-}
-
-VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR *availablePresentModes) {
-	VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
-
-	for(unsigned int i = 0; i < presentModeCount; i++) {
-		if(availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-			return availablePresentModes[i];
-		}
-		else if(availablePresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-			bestMode = availablePresentModes[i];
-		}
-	}
-	return bestMode;
-}
-
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities) {
-	int width, height;
-	glfwGetWindowSize(window, &width, &height);
-	if(capabilities.currentExtent.width != (uintmax_t)(UINT32_MAX)) {
-		return capabilities.currentExtent;
-	}
-	else {
-		VkExtent2D actualExtent = {width, height};
-
-		actualExtent.width = max(capabilities.minImageExtent.width, min(capabilities.maxImageExtent.width, actualExtent.width));
-		actualExtent.height = max(capabilities.minImageExtent.height, min(capabilities.maxImageExtent.height, actualExtent.height));
-
-		return actualExtent;
-	}
-}
-
-unsigned int checkValidationLayerSupport() {
-	unsigned int layerCount;
-	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
-
-	VkLayerProperties *availableLayers = malloc(layerCount*sizeof(VkLayerProperties));
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
-
-	for(int i = 0; i < sizeof(validationLayers)/sizeof(validationLayers[0]); i++) {
-		unsigned int layerFound = 0;
-		for(int j = 0; j < (int)layerCount; j++) {
-			if(strcmp(validationLayers[i], availableLayers[j].layerName) == 0) {
-				printf("%s, %s\n", validationLayers[i], availableLayers[j].layerName);
-				layerFound = 1;
-				break;
-			}
-		}
-		if(!layerFound) {
-			return 0;
-		}
-	}
-	free(availableLayers);
-	return 1;
-}
-
-const char **getRequiredExtensions(unsigned int *extensionCount) {
-	unsigned int glfwExtensionCount = 0;
-	const char** glfwExtensions;
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-	*extensionCount = glfwExtensionCount;
-
-	if(enableValidationLayers) {
-		*extensionCount = *extensionCount + 1;
-	}
-	const char **extensions = malloc(*extensionCount*sizeof(glfwExtensions[0]));
-
-	for(int i = 0; i < (int)*extensionCount; i++) {
-		extensions[i] = i < (int)glfwExtensionCount ? glfwExtensions[i] : VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
-	}
-
-	return extensions;
-}
-
-void createInstance() {
-	if(enableValidationLayers && !checkValidationLayerSupport()) {
-		printf("Validation layers requested but not available.\n");
-		cleanup();
-	}
-
-	VkApplicationInfo appInfo = {
-		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pApplicationName = "Hello Triangle",
-		.applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-		.pEngineName = "No Engine",
-		.engineVersion = VK_MAKE_VERSION(1, 0, 0),
-		//.apiVersion = VK_API_VERSION_1_0,
-	};
-
-	unsigned int extensionCount = 0;
-	const char **extensions = getRequiredExtensions(&extensionCount);
-	VkInstanceCreateInfo createInfo = {
-		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pApplicationInfo = &appInfo,
-		.enabledLayerCount = 0,
-		.enabledExtensionCount = extensionCount,
-		.ppEnabledExtensionNames = extensions,
-	};
-
-	if(enableValidationLayers) {
-		createInfo.enabledLayerCount = sizeof(validationLayers)/sizeof(validationLayers[0]);
-		createInfo.ppEnabledLayerNames = validationLayers;
-	}
-
-	/*unsigned int extensionCount = 0;
-	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-	VkExtensionProperties *extensions = malloc(extensionCount*sizeof(VkExtensionProperties));
-	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
-
-	for (int i = 0; i < sizeof(extensions)/sizeof(extensions[0]); i++) {
-		printf("%s\n", extensions[i].extensionName);
-	}*/
-
-	if(vkCreateInstance(&createInfo, NULL, &instance) != VK_SUCCESS) {
-		printf("Failed to create vulkan instance.\n");
-	}
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags,
@@ -418,159 +240,16 @@ void setupDebugCallback() {
 	//}
 }
 
-QueueFamilyIndices *findQueueFamilies(VkPhysicalDevice vkDevice) {
-	QueueFamilyIndices *indices = malloc(sizeof(QueueFamilyIndices));
-	indices->graphicsFamily = -1;
-	indices->presentFamily = -1;
-	indices->isComplete = checkComplete;
-
-	unsigned int queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(vkDevice, &queueFamilyCount, NULL);
-
-	VkQueueFamilyProperties *queueFamilies = malloc(queueFamilyCount*sizeof(VkQueueFamilyProperties));
-	vkGetPhysicalDeviceQueueFamilyProperties(vkDevice, &queueFamilyCount, queueFamilies);
-	for(int i = 0; i < (int)queueFamilyCount; i++) {
-		if(queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			indices->graphicsFamily = i;
-		}
-
-		int presentSupport = 0;
-		vkGetPhysicalDeviceSurfaceSupportKHR(vkDevice, i, surface, &presentSupport);
-
-		if(queueFamilies[i].queueCount > 0 &&presentSupport) {
-			indices->presentFamily = i;
-		}
-		if(indices->isComplete(indices->graphicsFamily, indices->presentFamily)) {
-			break;
-		}
-	}
-	return indices;
-}
-
-int checkDeviceExtensionSupported(VkPhysicalDevice vkDevice) {
-	unsigned int extensionCount;
-	vkEnumerateDeviceExtensionProperties(vkDevice, NULL, &extensionCount, NULL);
-
-	VkExtensionProperties *availableExtensions = malloc(extensionCount*sizeof(VkExtensionProperties));
-	vkEnumerateDeviceExtensionProperties(vkDevice, NULL, &extensionCount, availableExtensions);
-
-	for(int i = 0; i < 1; i++) {
-		unsigned int layerFound = 0;
-		for(int j = 0; j < (int)extensionCount; j++) {
-			if(strcmp(deviceExtensions[i], availableExtensions[j].extensionName) == 0) {
-				//printf("%s, %s\n", deviceExtensions[i], availableExtensions[j].extensionName);
-				layerFound = 1;
-				break;
-			}
-		}
-		if(!layerFound) {
-			return 0;
-		}
-	}
-	free(availableExtensions);
-	return 1;
-}
-
-int isDeviceSuitable(VkPhysicalDevice vkDevice) {
-	//VkPhysicalDeviceProperties deviceProperties;
-	//vkGetPhysicalDeviceProperties(vkDevice, &deviceProperties);
-    //
-	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceFeatures(vkDevice, &deviceFeatures);
-
-	QueueFamilyIndices *indices = findQueueFamilies(vkDevice);
-
-	int extensionsSupported = checkDeviceExtensionSupported(vkDevice);
-
-	int swapChainSuitable = 0;
-	if(extensionsSupported) {
-		swapChainSupportDetails swapChainSupport = querySwapChainSupport(vkDevice);
-		swapChainSuitable = swapChainSupport.formats != NULL && swapChainSupport.presentModes != NULL;
-	}
-	return indices->isComplete(indices->graphicsFamily, indices->presentFamily) && extensionsSupported && swapChainSuitable && deviceFeatures.samplerAnisotropy;
-}
-
-void pickPhysicalDevice() {
-	unsigned int deviceCount = 0;
-	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
-	if(deviceCount == 0) {
-		printf("GPU support for vulkan not available.\n");
-		cleanup();
-	}
-	VkPhysicalDevice *devices = malloc(deviceCount*sizeof(VkPhysicalDevice));
-	vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
-	for(int i = 0; i < (int)deviceCount; i++) {
-		if(isDeviceSuitable(devices[i])) {
-			physicalDevice = devices[i];
-			break;
-		}
-	}
-	if(physicalDevice == VK_NULL_HANDLE) {
-		printf("Failed to find a suitable GPU.\n");
-		cleanup();
-	}
-	free(devices);
-}
-
-void createLogicalDevice() {
-	QueueFamilyIndices *indices = findQueueFamilies(physicalDevice);
-	float queuePriority = 1.0f;
-
-	//TODO: Change for multiple queue families.
-
-	//VkDeviceQueueCreateInfo *queueCreateInfo = malloc()
-
-	VkDeviceQueueCreateInfo queueCreateInfo = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.queueFamilyIndex = indices->graphicsFamily,
-		.queueCount = 1,
-		.pQueuePriorities = &queuePriority,
-	};
-
-	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
-
-	deviceFeatures.samplerAnisotropy = VK_TRUE;
-
-	VkDeviceCreateInfo createInfo = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pQueueCreateInfos = &queueCreateInfo,
-		.queueCreateInfoCount = 1,
-		.pEnabledFeatures = &deviceFeatures,
-		.enabledExtensionCount = sizeof(deviceExtensions)/sizeof(deviceExtensions[0]),
-		.ppEnabledExtensionNames = deviceExtensions,
-		.enabledLayerCount = 0,
-	};
-
-	if(enableValidationLayers) {
-		createInfo.enabledLayerCount = sizeof(validationLayers)/sizeof(validationLayers[0]);
-		createInfo.ppEnabledLayerNames = validationLayers;
-	}
-
-	if(vkCreateDevice(physicalDevice, &createInfo, NULL, &device) != VK_SUCCESS) {
-		printf("Failed to create logical device.\n");
-		cleanup();
-	}
-
-	vkGetDeviceQueue(device, indices->graphicsFamily, 0, &graphicsQueue);
-	vkGetDeviceQueue(device, indices->presentFamily, 0, &presentQueue);
-}
-
-void createSurface() {
-	if(glfwCreateWindowSurface(instance, window, NULL, &surface) != VK_SUCCESS) {
-		printf("Failed to create surface.\n");
-		cleanup();
-	}
-}
-
 void createSwapChain() {
-	swapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+	unsigned int formatCount;
+	unsigned int presentModeCount;
+	swapChainSupportDetails swapChainSupport = querySwapChainSupport(graphics.physicalDevice, graphics.surface, &formatCount, &presentModeCount);
 
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats, formatCount);
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes, presentModeCount);
+	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, window);
 	unsigned int imageCount = swapChainSupport.capabilities.minImageCount + 1;
-	globalImageCount = imageCount;
+	graphics.deviceImageCount = imageCount;
 
 	if(swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
 		imageCount = swapChainSupport.capabilities.maxImageCount;
@@ -578,7 +257,7 @@ void createSwapChain() {
 
 	VkSwapchainCreateInfoKHR createInfo = {
 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = surface,
+		.surface = graphics.surface,
 		.minImageCount = imageCount,
 		.imageFormat = surfaceFormat.format,
 		.imageColorSpace = surfaceFormat.colorSpace,
@@ -587,7 +266,7 @@ void createSwapChain() {
 		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 	};
 
-	QueueFamilyIndices *indices = findQueueFamilies(physicalDevice);
+	QueueFamilyIndices *indices = findQueueFamilies(graphics.physicalDevice, graphics.surface);
 	unsigned int queueFamilyIndices[] = {(unsigned int)indices->graphicsFamily, (unsigned int)indices->presentFamily};
 
 	if (indices->graphicsFamily != indices->presentFamily) {
@@ -606,14 +285,14 @@ void createSwapChain() {
 
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if(vkCreateSwapchainKHR(device, &createInfo, NULL, &swapChain) != VK_SUCCESS) {
+	if(vkCreateSwapchainKHR(graphics.device, &createInfo, NULL, &swapChain) != VK_SUCCESS) {
 		printf("Failed to create swap chain.\n");
 		cleanup();
 	}
 
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, NULL);
+	vkGetSwapchainImagesKHR(graphics.device, swapChain, &imageCount, NULL);
 	swapChainImages = malloc(imageCount*sizeof(VkImage));
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages);
+	vkGetSwapchainImagesKHR(graphics.device, swapChain, &imageCount, swapChainImages);
 
 	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
@@ -621,8 +300,8 @@ void createSwapChain() {
 }
 
 void createImageViews() {
-	swapChainImageViews = malloc(globalImageCount*sizeof(VkImageView));
-	for(unsigned int i = 0; i < globalImageCount; i++) {
+	swapChainImageViews = malloc(graphics.deviceImageCount*sizeof(VkImageView));
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		VkImageViewCreateInfo createInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.image = swapChainImages[i],
@@ -639,7 +318,7 @@ void createImageViews() {
 			.subresourceRange.layerCount = 1,
 		};
 
-		if(vkCreateImageView(device, &createInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS) {
+		if(vkCreateImageView(graphics.device, &createInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS) {
 			printf("Failed to create VK image views\n");
 			cleanup();
 		}
@@ -659,7 +338,7 @@ VkShaderModule createShaderModule(const char* code, size_t shaderSize) {
 	};
 
 	VkShaderModule shaderModule;
-	if(vkCreateShaderModule(device, &createInfo, NULL, &shaderModule) != VK_SUCCESS) {
+	if(vkCreateShaderModule(graphics.device, &createInfo, NULL, &shaderModule) != VK_SUCCESS) {
 		printf("Failed to create shader module.\n");
 		cleanup();
 	}
@@ -694,7 +373,7 @@ static char *readShader(char *filename, size_t *size)
 VkFormat findSupportedFormat(VkFormat *candidates, int numFormats, VkImageTiling tiling, VkFormatFeatureFlags features) {
 	for(int i = 0; i < numFormats; i++) {
 		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, candidates[i], &props);
+		vkGetPhysicalDeviceFormatProperties(graphics.physicalDevice, candidates[i], &props);
 
 		if(tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
 			return candidates[i];
@@ -776,7 +455,7 @@ void createRenderPass() {
 		.pDependencies = &dependency,
 	};
 
-	if(vkCreateRenderPass(device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
+	if(vkCreateRenderPass(graphics.device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
 		printf("Failed to create render pass.\n");
 		cleanup();
 	}
@@ -932,7 +611,7 @@ void createGraphicsPipeline() {
 		//.pPushConstantRanges = 0,
 	};
 
-	if(vkCreatePipelineLayout(device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
+	if(vkCreatePipelineLayout(graphics.device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
 		printf("Failed to create pipeline layout.\n");
 		cleanup();
 	};
@@ -956,20 +635,20 @@ void createGraphicsPipeline() {
 		.basePipelineIndex = -1,
 	};
 
-	if(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
+	if(vkCreateGraphicsPipelines(graphics.device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
 		printf("Failed to create graphics pipeline.\n");
 		cleanup();
 	}
 
-	vkDestroyShaderModule(device, vertShaderModule, NULL);
-	vkDestroyShaderModule(device, fragShaderModule, NULL);
+	vkDestroyShaderModule(graphics.device, vertShaderModule, NULL);
+	vkDestroyShaderModule(graphics.device, fragShaderModule, NULL);
 
 	//printf("%zd, %zd\n", vertSize, fragSize);
 }
 
 void createFramebuffers() {
-	swapChainFramebuffers = malloc(globalImageCount*sizeof(VkFramebuffer));
-	for(unsigned int i = 0; i < globalImageCount; i++) {
+	swapChainFramebuffers = malloc(graphics.deviceImageCount*sizeof(VkFramebuffer));
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		VkImageView attachments[2] = {
 			swapChainImageViews[i],
 			depthImageView
@@ -985,7 +664,7 @@ void createFramebuffers() {
 			.layers = 1,
 		};
 
-		if(vkCreateFramebuffer(device, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+		if(vkCreateFramebuffer(graphics.device, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
 			printf("Failed to create framebuffer.\n");
 			cleanup();
 		}
@@ -993,7 +672,7 @@ void createFramebuffers() {
 }
 
 void createCommandPool() {
-	QueueFamilyIndices *queueFamilyIndices = findQueueFamilies(physicalDevice);
+	QueueFamilyIndices *queueFamilyIndices = findQueueFamilies(graphics.physicalDevice, graphics.surface);
 
 	VkCommandPoolCreateInfo poolInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1001,27 +680,27 @@ void createCommandPool() {
 		.flags = 0,
 	};
 
-	if(vkCreateCommandPool(device, &poolInfo, NULL, &commandPool) != VK_SUCCESS) {
+	if(vkCreateCommandPool(graphics.device, &poolInfo, NULL, &commandPool) != VK_SUCCESS) {
 		printf("Failed to create command pool.\n");
 	}
 
 }
 
 void createCommandBuffer() {
-	commandBuffers = malloc(globalImageCount*sizeof(VkCommandBuffer));
+	commandBuffers = malloc(graphics.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = commandPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = (uint32_t)globalImageCount,
+		.commandBufferCount = (uint32_t)graphics.deviceImageCount,
 	};
 
-	if(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers) != VK_SUCCESS) {
+	if(vkAllocateCommandBuffers(graphics.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
 		printf("Failed to allocate command buffers.\n");
 		cleanup();
 	}
 
-	for(unsigned int i = 0; i < globalImageCount; i++) {
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		VkCommandBufferBeginInfo beginInfo = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
@@ -1073,8 +752,8 @@ void createSemaphores() {
 	VkSemaphoreCreateInfo semaphoreInfo = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 	};
-	if(vkCreateSemaphore(device, &semaphoreInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS
-	|| vkCreateSemaphore(device, &semaphoreInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS) {
+	if(vkCreateSemaphore(graphics.device, &semaphoreInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS
+	|| vkCreateSemaphore(graphics.device, &semaphoreInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS) {
 		printf("Failed to create semaphores.\n");
 		cleanup();
 	}
@@ -1082,7 +761,7 @@ void createSemaphores() {
 
 uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+	vkGetPhysicalDeviceMemoryProperties(graphics.physicalDevice, &memProperties);
 
 	for(uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
 		if(typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
@@ -1100,23 +779,23 @@ void createVertexBuffer() {
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 
 	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	vkMapMemory(graphics.device, stagingBufferMemory, 0, size, 0, &data);
 	memcpy(data, vertices, sizeof(vertices));
 	//printf("asdf: %zu\nS", sizeof(vertices));
 	//for(int i = 0; i < 15; i++) {
 	//	printf("%f\n", *((float *) ((char *) data + sizeof(float) * i)));
 	//	//printf("%f %f\n", testData->color.x, testData->color.y);
 	//}
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(graphics.device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer, &vertexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, size);
+	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer, &vertexBufferMemory);
+	copyBuffer(graphics.device, commandPool, graphics.graphicsQueue, stagingBuffer, vertexBuffer, size);
 
-	vkDestroyBuffer(device, stagingBuffer, NULL);
-	vkFreeMemory(device, stagingBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
+	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
 }
 
 void createIndexBuffer() {
@@ -1124,18 +803,18 @@ void createIndexBuffer() {
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 
 	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	vkMapMemory(graphics.device, stagingBufferMemory, 0, size, 0, &data);
 	memcpy(data, vertexIndices, sizeof(vertexIndices));
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(graphics.device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, indexBuffer, size);
+	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
+	copyBuffer(graphics.device, commandPool, graphics.graphicsQueue, stagingBuffer, indexBuffer, size);
 
-	vkDestroyBuffer(device, stagingBuffer, NULL);
-	vkFreeMemory(device, stagingBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
+	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
 }
 
 void createDescriptorSetLayout() {
@@ -1165,7 +844,7 @@ void createDescriptorSetLayout() {
 		.pBindings = bindings,
 	};
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
+	if (vkCreateDescriptorSetLayout(graphics.device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
 		printf("Failed to create descriptor set layout.");
 		cleanup();
 	}
@@ -1174,34 +853,34 @@ void createDescriptorSetLayout() {
 void createUniformBuffer() {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
-	uniformBuffer = malloc(sizeof(VkBuffer)*globalImageCount);
-	uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*globalImageCount);
+	uniformBuffer = malloc(sizeof(VkBuffer)*graphics.deviceImageCount);
+	uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*graphics.deviceImageCount);
 
-	for(unsigned int i = 0; i < globalImageCount; i++) {
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+		createBuffer(graphics.physicalDevice, graphics.device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
 	}
 }
 
 void createDescriptorSets() {
 	VkDescriptorSetLayout *layouts;
-	layouts = malloc(sizeof(VkDescriptorSetLayout)*globalImageCount);
+	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphics.deviceImageCount);
 
-	for(unsigned int i = 0; i < globalImageCount; i++) {
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		layouts[i] = descriptorSetLayout;
 	}
 	VkDescriptorSetAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 		.descriptorPool = descriptorPool,
-		.descriptorSetCount = globalImageCount,
+		.descriptorSetCount = graphics.deviceImageCount,
 		.pSetLayouts = layouts,
 	};
 
-	descriptorSets = malloc(sizeof(VkDescriptorSet)*globalImageCount);
-	if(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets) != VK_SUCCESS) {
+	descriptorSets = malloc(sizeof(VkDescriptorSet)*graphics.deviceImageCount);
+	if(vkAllocateDescriptorSets(graphics.device, &allocInfo, descriptorSets) != VK_SUCCESS) {
 		printf("Failed to allocate descriptor sets.");
 	}
 
-	for(unsigned int i = 0; i < globalImageCount; i++) {
+	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		VkDescriptorBufferInfo bufferInfo = {
 			.buffer = uniformBuffer[i],
 			.offset = 0,
@@ -1240,7 +919,7 @@ void createDescriptorSets() {
 		descriptorWrites[0] = descriptorWrite;
 		descriptorWrites[1] = descriptorWriteImage;
 
-		vkUpdateDescriptorSets(device, 2, descriptorWrites, 0, NULL);
+		vkUpdateDescriptorSets(graphics.device, 2, descriptorWrites, 0, NULL);
 	}
 }
 
@@ -1248,18 +927,18 @@ void createDescriptorPool() {
 
 	VkDescriptorPoolSize *poolSizes = malloc(2*sizeof(VkDescriptorPoolSize));
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = globalImageCount;
+	poolSizes[0].descriptorCount = graphics.deviceImageCount;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = globalImageCount;
+	poolSizes[1].descriptorCount = graphics.deviceImageCount;
 
 	VkDescriptorPoolCreateInfo poolInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.poolSizeCount = 2,
 		.pPoolSizes = poolSizes,
-		.maxSets = globalImageCount,
+		.maxSets = graphics.deviceImageCount,
 	};
 
-	if(vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
+	if(vkCreateDescriptorPool(graphics.device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
 		printf("Failed to create descriptor pool.");
 		cleanup();
 	}
@@ -1282,13 +961,13 @@ void createImage(unsigned int width, unsigned int height, VkFormat format, VkIma
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	};
 
-	if(vkCreateImage(device, &imageInfo, NULL, image) != VK_SUCCESS) {
+	if(vkCreateImage(graphics.device, &imageInfo, NULL, image) != VK_SUCCESS) {
 		printf("Failed to create image");
 		cleanup();
 	}
 
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(device, *image, &memRequirements);
+	vkGetImageMemoryRequirements(graphics.device, *image, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -1296,11 +975,11 @@ void createImage(unsigned int width, unsigned int height, VkFormat format, VkIma
 		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties),
 	};
 
-	if(vkAllocateMemory(device, &allocInfo, NULL, imageMemory) != VK_SUCCESS) {
+	if(vkAllocateMemory(graphics.device, &allocInfo, NULL, imageMemory) != VK_SUCCESS) {
 		printf("Failed to allocate image memory");
 	}
 
-	vkBindImageMemory(device, *image, *imageMemory, 0);
+	vkBindImageMemory(graphics.device, *image, *imageMemory, 0);
 }
 
 int hasStencilComponent(VkFormat format) {
@@ -1308,7 +987,7 @@ int hasStencilComponent(VkFormat format) {
 }
 
 void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(graphics.device, commandPool);
 
 	VkImageMemoryBarrier barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -1369,11 +1048,11 @@ void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayo
 		1, &barrier
 	);
 
-	endSingleTimeCommands(device, graphicsQueue, commandBuffer, commandPool);
+	endSingleTimeCommands(graphics.device, graphics.graphicsQueue, commandBuffer, commandPool);
 }
 
 void copyBufferToImage(VkBuffer buffer, VkImage image, unsigned int width, unsigned int height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(graphics.device, commandPool);
 
 	VkBufferImageCopy region = {
 		.bufferOffset = 0,
@@ -1390,7 +1069,7 @@ void copyBufferToImage(VkBuffer buffer, VkImage image, unsigned int width, unsig
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	endSingleTimeCommands(device, graphicsQueue, commandBuffer, commandPool);
+	endSingleTimeCommands(graphics.device, graphics.graphicsQueue, commandBuffer, commandPool);
 }
 
 void createTextureImage() {
@@ -1406,12 +1085,12 @@ void createTextureImage() {
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(physicalDevice, device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+	createBuffer(graphics.physicalDevice, graphics.device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 
 	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+	vkMapMemory(graphics.device, stagingBufferMemory, 0, imageSize, 0, &data);
 		memcpy(data, (const void *)pixels, imageSize);
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(graphics.device, stagingBufferMemory);
 
 	stbi_image_free(pixels);
 
@@ -1422,8 +1101,8 @@ void createTextureImage() {
 	copyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight);
 	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-	vkDestroyBuffer(device, stagingBuffer, NULL);
-	vkFreeMemory(device, stagingBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
+	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
 
 }
 
@@ -1441,7 +1120,7 @@ VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags a
 	};
 
 	VkImageView imageView;
-	if(vkCreateImageView(device, &viewInfo, NULL, &imageView) != VK_SUCCESS) {
+	if(vkCreateImageView(graphics.device, &viewInfo, NULL, &imageView) != VK_SUCCESS) {
 		printf("Failed to create texture image view.");
 		cleanup();
 	}
@@ -1473,7 +1152,7 @@ void createTextureSampler() {
 		.maxLod = 0.0f,
 	};
 
-	if (vkCreateSampler(device, &samplerInfo, NULL, &textureSampler) != VK_SUCCESS) {
+	if (vkCreateSampler(graphics.device, &samplerInfo, NULL, &textureSampler) != VK_SUCCESS) {
 		printf("Failed to create texture sampler");
 		cleanup();
 	}
@@ -1491,11 +1170,14 @@ void createDepthResources() {
 	}
 
 void initVulkan() {
-	createInstance();
+	createInstance(enableValidationLayers, &graphics.instance, validationLayers);
 	setupDebugCallback();
-	createSurface();
-	pickPhysicalDevice();
-	createLogicalDevice();
+	createSurface(graphics.instance, &graphics.surface, window);
+
+	graphics.physicalDevice = VK_NULL_HANDLE;
+	pickPhysicalDevice(&graphics.physicalDevice, graphics.instance, graphics.surface);
+	createLogicalDevice(&graphics.device, &graphics.graphicsQueue, &graphics.presentQueue, graphics.physicalDevice, graphics.surface);
+
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
@@ -1506,6 +1188,7 @@ void initVulkan() {
 	createCommandPool();
 	createDepthResources();
 	createFramebuffers();
+
 	createTextureImage();
 	createTextureImageView();
 	createTextureSampler();
@@ -1524,7 +1207,7 @@ void recreateSwapChain() {
 	int width, height;
     glfwGetWindowSize(window, &width, &height);
     if (width == 0 || height == 0) return;
-	vkDeviceWaitIdle(device);
+	vkDeviceWaitIdle(graphics.device);
 
 	cleanupSwapChain();
 
@@ -1544,7 +1227,7 @@ static void onWindowResized(GLFWwindow *window, int width, int height) {
 
 void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
-	mat4 m = translate(1.0, -1.0, 1.0);
+	mat4 m = translate(0.0, -1.0, 0.0);
 	mat4 v = getViewMatrix();
 	mat4 p = perspective(45.0, swapChainExtent.width / swapChainExtent.height, 0.1, 100000);
 	//p.m[1][1] *= -1;
@@ -1570,9 +1253,9 @@ void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
 	//printf("asdf: %zu, %zu\n", sizeof(ubo), sizeof(uniformBufferObject));
 	void *data;
-	vkMapMemory(device, uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
+	vkMapMemory(graphics.device, uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
 	memcpy(data, (const void *)&ubo[0], sizeof(ubo));
-	vkUnmapMemory(device, uniformBufferMemory[currentImage]);
+	vkUnmapMemory(graphics.device, uniformBufferMemory[currentImage]);
 
 	//for(int i = 0; i < 48; i++) {
 	//	printf("%f, ", *((float *) ((char *) data + sizeof(float) * i)));
@@ -1588,7 +1271,7 @@ void drawFrame() {
 	lastFrame = currentFrame;
 
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(graphics.device, swapChain, UINT_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 	if(result == VK_ERROR_OUT_OF_DATE_KHR) {
 		recreateSwapChain();
@@ -1616,7 +1299,7 @@ void drawFrame() {
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	if(vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+	if(vkQueueSubmit(graphics.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
 		printf("Failed to submit draw command buffer.\n");
 		cleanup();
 	}
@@ -1632,7 +1315,7 @@ void drawFrame() {
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &imageIndex;
 
-	result = vkQueuePresentKHR(presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(graphics.presentQueue, &presentInfo);
 
 	if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 		recreateSwapChain();
@@ -1642,7 +1325,7 @@ void drawFrame() {
 		cleanup();
 	}
 
-	vkQueueWaitIdle(presentQueue);
+	vkQueueWaitIdle(graphics.presentQueue);
 }
 
 void mainLoop() {
@@ -1652,7 +1335,7 @@ void mainLoop() {
 
 		drawFrame();
 	}
-	vkDeviceWaitIdle(device);
+	vkDeviceWaitIdle(graphics.device);
 }
 
 void run() {
