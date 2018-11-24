@@ -2,7 +2,6 @@
 
 #include <windows.h>
 #include <GLFW/glfw3.h>
-#include <STB/stb_image.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +51,18 @@ typedef struct vkGraphics {
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physicalDevice;
 
+	VkCommandPool commandPool;
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
+	VkBuffer *uniformBuffer;
+	VkDeviceMemory *uniformBufferMemory;
+
+	VkImageView textureImageView;
+	VkSampler textureSampler;
 	unsigned int deviceImageCount;
 } vkGraphics;
 
@@ -61,20 +72,20 @@ const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-const vertexData vertices[8] = {
-	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+vertexData vertex[8] = {
+	{{-0.5f, -0.5f, 0.0f}, 	{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, -0.5f, 0.0f}, 	{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, 0.5f, 0.0f}, 	{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-0.5f, 0.5f, 0.0f}, 	{1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
 
 	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+    {{0.5f, -0.5f, -0.5f}, 	{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f, -0.5f}, 	{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f, -0.5f}, 	{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
 
 };
 
-const uint16_t vertexIndices[12] = {
+uint16_t vertexIndices[12] = {
 	0, 1, 2, 2, 3, 0,
 	4, 5, 6, 6, 7, 4
 };
@@ -88,14 +99,7 @@ VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
 VkFramebuffer *swapChainFramebuffers;
-VkCommandPool commandPool;
 VkCommandBuffer *commandBuffers;
-VkBuffer vertexBuffer;
-VkDeviceMemory vertexBufferMemory;
-VkBuffer indexBuffer;
-VkDeviceMemory indexBufferMemory;
-VkBuffer *uniformBuffer;
-VkDeviceMemory *uniformBufferMemory;
 GLFWwindow *window;
 
 VkDescriptorSetLayout descriptorSetLayout;
@@ -103,15 +107,9 @@ VkDescriptorSetLayout descriptorSetLayout;
 VkDescriptorPool descriptorPool;
 VkDescriptorSet *descriptorSets;
 
-VkImage textureImage;
-VkDeviceMemory textureImageMemory;
-
 VkImage depthImage;
 VkDeviceMemory depthImageMemory;
 VkImageView depthImageView;
-
-VkImageView textureImageView;
-VkSampler textureSampler;
 
 VkSemaphore imageAvailableSemaphore;
 VkSemaphore renderFinishedSemaphore;
@@ -159,7 +157,7 @@ void cleanupSwapChain() {
 	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		vkDestroyFramebuffer(graphics.device, swapChainFramebuffers[i], NULL);
 	}
-	vkFreeCommandBuffers(graphics.device, commandPool, graphics.deviceImageCount, commandBuffers);
+	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphics.deviceImageCount, commandBuffers);
 
 	vkDestroyPipeline(graphics.device, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(graphics.device, pipelineLayout, NULL);
@@ -178,28 +176,28 @@ void cleanup() {
     vkDestroyImage(graphics.device, depthImage, NULL);
     vkFreeMemory(graphics.device, depthImageMemory, NULL);
 
-	vkDestroySampler(graphics.device, textureSampler, NULL);
-	vkDestroyImageView(graphics.device, textureImageView, NULL);
-	vkDestroyImage(graphics.device, textureImage, NULL);
-	vkFreeMemory(graphics.device, textureImageMemory, NULL);
+	vkDestroySampler(graphics.device, graphics.textureSampler, NULL);
+	vkDestroyImageView(graphics.device, graphics.textureImageView, NULL);
+	vkDestroyImage(graphics.device, graphics.textureImage, NULL);
+	vkFreeMemory(graphics.device, graphics.textureImageMemory, NULL);
 
 	vkDestroyDescriptorPool(graphics.device, descriptorPool, NULL);
 	vkDestroyDescriptorSetLayout(graphics.device, descriptorSetLayout, NULL);
 
 	for (unsigned int i = 0; i < graphics.deviceImageCount; i++) {
-		vkDestroyBuffer(graphics.device, uniformBuffer[i], NULL);
-		vkFreeMemory(graphics.device, uniformBufferMemory[i], NULL);
+		vkDestroyBuffer(graphics.device, graphics.uniformBuffer[i], NULL);
+		vkFreeMemory(graphics.device, graphics.uniformBufferMemory[i], NULL);
 	}
 
-	vkDestroyBuffer(graphics.device, indexBuffer, NULL);
-	vkFreeMemory(graphics.device, indexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, graphics.indexBuffer, NULL);
+	vkFreeMemory(graphics.device, graphics.indexBufferMemory, NULL);
 
-	vkDestroyBuffer(graphics.device, vertexBuffer, NULL);
-	vkFreeMemory(graphics.device, vertexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, graphics.vertexBuffer, NULL);
+	vkFreeMemory(graphics.device, graphics.vertexBufferMemory, NULL);
 
 	vkDestroySemaphore(graphics.device, renderFinishedSemaphore, NULL);
 	vkDestroySemaphore(graphics.device, imageAvailableSemaphore, NULL);
-	vkDestroyCommandPool(graphics.device, commandPool, NULL);
+	vkDestroyCommandPool(graphics.device, graphics.commandPool, NULL);
 
 	vkDestroyDevice(graphics.device, NULL);
 	DestroyDebugReportCallbackEXT(graphics.instance, callback, NULL);
@@ -680,7 +678,7 @@ void createCommandPool() {
 		.flags = 0,
 	};
 
-	if(vkCreateCommandPool(graphics.device, &poolInfo, NULL, &commandPool) != VK_SUCCESS) {
+	if(vkCreateCommandPool(graphics.device, &poolInfo, NULL, &graphics.commandPool) != VK_SUCCESS) {
 		printf("Failed to create command pool.\n");
 	}
 
@@ -690,7 +688,7 @@ void createCommandBuffer() {
 	commandBuffers = malloc(graphics.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = commandPool,
+		.commandPool = graphics.commandPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = (uint32_t)graphics.deviceImageCount,
 	};
@@ -730,10 +728,10 @@ void createCommandBuffer() {
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkBuffer vertexBuffers[] = {vertexBuffer};
+			VkBuffer vertexBuffers[] = {graphics.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(commandBuffers[i], graphics.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
 			//vkCmdDraw(commandBuffers[i], (uint32_t)(sizeof(vertices)/sizeof(vertices[0])), 1, 0, 0);
 			vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
@@ -757,64 +755,6 @@ void createSemaphores() {
 		printf("Failed to create semaphores.\n");
 		cleanup();
 	}
-}
-
-uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(graphics.physicalDevice, &memProperties);
-
-	for(uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-		if(typeFilter & (1 << i) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-			return i;
-		}
-	}
-
-	printf("Failed to find a suitable memory type.\n");
-	//cleanup();
-	return 2;
-}
-
-void createVertexBuffer() {
-	VkDeviceSize size = sizeof(vertices);
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
-
-	void *data;
-	vkMapMemory(graphics.device, stagingBufferMemory, 0, size, 0, &data);
-	memcpy(data, vertices, sizeof(vertices));
-	//printf("asdf: %zu\nS", sizeof(vertices));
-	//for(int i = 0; i < 15; i++) {
-	//	printf("%f\n", *((float *) ((char *) data + sizeof(float) * i)));
-	//	//printf("%f %f\n", testData->color.x, testData->color.y);
-	//}
-	vkUnmapMemory(graphics.device, stagingBufferMemory);
-
-	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer, &vertexBufferMemory);
-	copyBuffer(graphics.device, commandPool, graphics.graphicsQueue, stagingBuffer, vertexBuffer, size);
-
-	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
-	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
-}
-
-void createIndexBuffer() {
-	VkDeviceSize size = sizeof(vertexIndices);
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
-
-	void *data;
-	vkMapMemory(graphics.device, stagingBufferMemory, 0, size, 0, &data);
-	memcpy(data, vertexIndices, sizeof(vertexIndices));
-	vkUnmapMemory(graphics.device, stagingBufferMemory);
-
-	createBuffer(graphics.physicalDevice, graphics.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
-	copyBuffer(graphics.device, commandPool, graphics.graphicsQueue, stagingBuffer, indexBuffer, size);
-
-	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
-	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
 }
 
 void createDescriptorSetLayout() {
@@ -850,14 +790,14 @@ void createDescriptorSetLayout() {
 	}
 }
 
-void createUniformBuffer() {
+void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, VkBuffer *uniformBuffer, VkDeviceMemory *uniformBufferMemory) {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
-	uniformBuffer = malloc(sizeof(VkBuffer)*graphics.deviceImageCount);
-	uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*graphics.deviceImageCount);
+	graphics.uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
+	graphics.uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
 
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
-		createBuffer(graphics.physicalDevice, graphics.device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &uniformBuffer[i], &uniformBufferMemory[i]);
+	for(unsigned int i = 0; i < imageCount; i++) {
+		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &graphics.uniformBuffer[i], &graphics.uniformBufferMemory[i]);
 	}
 }
 
@@ -882,15 +822,15 @@ void createDescriptorSets() {
 
 	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
 		VkDescriptorBufferInfo bufferInfo = {
-			.buffer = uniformBuffer[i],
+			.buffer = graphics.uniformBuffer[i],
 			.offset = 0,
 			.range = sizeof(uniformBufferObject),
 		};
 
 		VkDescriptorImageInfo imageInfo = {
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			.imageView = textureImageView,
-			.sampler = textureSampler,
+			.imageView = graphics.textureImageView,
+			.sampler = graphics.textureSampler,
 		};
 
 		VkWriteDescriptorSet descriptorWrite = {
@@ -944,228 +884,18 @@ void createDescriptorPool() {
 	}
 }
 
-void createImage(unsigned int width, unsigned int height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory) {
-	VkImageCreateInfo imageInfo = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.extent.width = width,
-		.extent.height = height,
-		.extent.depth = 1,
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.format = format,
-		.tiling = tiling,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.usage = usage,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-	};
-
-	if(vkCreateImage(graphics.device, &imageInfo, NULL, image) != VK_SUCCESS) {
-		printf("Failed to create image");
-		cleanup();
-	}
-
-	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(graphics.device, *image, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties),
-	};
-
-	if(vkAllocateMemory(graphics.device, &allocInfo, NULL, imageMemory) != VK_SUCCESS) {
-		printf("Failed to allocate image memory");
-	}
-
-	vkBindImageMemory(graphics.device, *image, *imageMemory, 0);
-}
-
-int hasStencilComponent(VkFormat format) {
-    return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-}
-
-void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(graphics.device, commandPool);
-
-	VkImageMemoryBarrier barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.oldLayout = oldLayout,
-		.newLayout = newLayout,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = image,
-	};
-
-	if(newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-		if(hasStencilComponent(format)) {
-			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-		}
-	} else {
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	}
-
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = 0;
-	barrier.dstAccessMask = 0;
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-
-	if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	} else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	} else {
-		printf("Unsupported layout.");
-		cleanup();
-	}
-
-	vkCmdPipelineBarrier(
-		commandBuffer,
-		sourceStage,
-		destinationStage,
-		0,
-		0, NULL,
-		0, NULL,
-		1, &barrier
-	);
-
-	endSingleTimeCommands(graphics.device, graphics.graphicsQueue, commandBuffer, commandPool);
-}
-
-void copyBufferToImage(VkBuffer buffer, VkImage image, unsigned int width, unsigned int height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(graphics.device, commandPool);
-
-	VkBufferImageCopy region = {
-		.bufferOffset = 0,
-		.bufferRowLength = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.imageSubresource.mipLevel = 0,
-		.imageSubresource.baseArrayLayer = 0,
-		.imageSubresource.layerCount = 1,
-
-		.imageOffset = {0,0,0},
-		.imageExtent = {width,height,1},
-	};
-
-	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-	endSingleTimeCommands(graphics.device, graphics.graphicsQueue, commandBuffer, commandPool);
-}
-
-void createTextureImage() {
-	int texWidth, texHeight, texChannels;
-	stbi_uc *pixels = stbi_load("textures/earth.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-	VkDeviceSize imageSize = texWidth * texHeight * 4;
-
-	if(!pixels) {
-		printf("Failed to load texture");
-		cleanup();
-	}
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-
-	createBuffer(graphics.physicalDevice, graphics.device, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
-
-	void *data;
-	vkMapMemory(graphics.device, stagingBufferMemory, 0, imageSize, 0, &data);
-		memcpy(data, (const void *)pixels, imageSize);
-	vkUnmapMemory(graphics.device, stagingBufferMemory);
-
-	stbi_image_free(pixels);
-
-	//createImage(unsigned int width, unsigned int height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage *image, VkDeviceMemory *imageMemory)
-	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &textureImage, &textureImageMemory);
-
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight);
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	vkDestroyBuffer(graphics.device, stagingBuffer, NULL);
-	vkFreeMemory(graphics.device, stagingBufferMemory, NULL);
-
-}
-
-VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
-	VkImageViewCreateInfo viewInfo = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image = image,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = format,
-		.subresourceRange.aspectMask = aspectFlags,
-		.subresourceRange.baseMipLevel = 0,
-		.subresourceRange.levelCount =1,
-		.subresourceRange.baseArrayLayer = 0,
-		.subresourceRange.layerCount = 1,
-	};
-
-	VkImageView imageView;
-	if(vkCreateImageView(graphics.device, &viewInfo, NULL, &imageView) != VK_SUCCESS) {
-		printf("Failed to create texture image view.");
-		cleanup();
-	}
-
-	return imageView;
-}
-
-void createTextureImageView() {
-	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-}
-
-void createTextureSampler() {
-	VkSamplerCreateInfo samplerInfo = {
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter = VK_FILTER_LINEAR,
-		.minFilter = VK_FILTER_LINEAR,
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.anisotropyEnable = VK_TRUE,
-		.maxAnisotropy = 16,
-		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-		.unnormalizedCoordinates = VK_FALSE,
-		.compareEnable = VK_FALSE,
-		.compareOp = VK_COMPARE_OP_ALWAYS,
-		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-		.mipLodBias = 0.0f,
-		.minLod = 0.0f,
-		.maxLod = 0.0f,
-	};
-
-	if (vkCreateSampler(graphics.device, &samplerInfo, NULL, &textureSampler) != VK_SUCCESS) {
-		printf("Failed to create texture sampler");
-		cleanup();
-	}
+void createTextureImageView(VkDevice device, VkImage textureImage) {
+	graphics.textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void createDepthResources() {
 	VkFormat depthFormat = findDepthFormat();
 
-	createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
-	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	createImage(graphics.device, graphics.physicalDevice, swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
+	depthImageView = createImageView(graphics.device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 
-	transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 	}
 
@@ -1177,25 +907,23 @@ void initVulkan() {
 	graphics.physicalDevice = VK_NULL_HANDLE;
 	pickPhysicalDevice(&graphics.physicalDevice, graphics.instance, graphics.surface);
 	createLogicalDevice(&graphics.device, &graphics.graphicsQueue, &graphics.presentQueue, graphics.physicalDevice, graphics.surface);
+	createDescriptorSetLayout();
+	createCommandPool();
 
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
-
-	createDescriptorSetLayout();
-
 	createGraphicsPipeline();
-	createCommandPool();
 	createDepthResources();
 	createFramebuffers();
 
-	createTextureImage();
-	createTextureImageView();
-	createTextureSampler();
+	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &graphics.textureImage, &graphics.textureImageMemory);
+	createTextureImageView(graphics.device, graphics.textureImage);
+	createTextureSampler(graphics.device, &graphics.textureSampler);
 
-	createVertexBuffer();
-	createIndexBuffer();
-	createUniformBuffer();
+	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphics.vertexBuffer, &graphics.vertexBufferMemory);
+	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphics.indexBuffer, &graphics.indexBufferMemory, vertexIndices);
+	createUniformBuffer(graphics.device, graphics.physicalDevice, graphics.deviceImageCount, graphics.uniformBuffer, graphics.uniformBufferMemory);
 
 	createDescriptorPool();
 	createDescriptorSets();
@@ -1253,9 +981,9 @@ void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
 	//printf("asdf: %zu, %zu\n", sizeof(ubo), sizeof(uniformBufferObject));
 	void *data;
-	vkMapMemory(graphics.device, uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
+	vkMapMemory(graphics.device, graphics.uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
 	memcpy(data, (const void *)&ubo[0], sizeof(ubo));
-	vkUnmapMemory(graphics.device, uniformBufferMemory[currentImage]);
+	vkUnmapMemory(graphics.device, graphics.uniformBufferMemory[currentImage]);
 
 	//for(int i = 0; i < 48; i++) {
 	//	printf("%f, ", *((float *) ((char *) data + sizeof(float) * i)));
