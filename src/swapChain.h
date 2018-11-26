@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
+#include "device.h"
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats, unsigned int formatCount);
 VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR *availablePresentModes, unsigned int presentModeCount);

@@ -13,7 +13,8 @@ SRCS = Main.c \
 	instance.c \
 	device.c \
 	swapChain.c \
-	textures.c
+	textures.c \
+	shader.c
 
 
 #SRCS := $(shell echo dir1/*.c)
