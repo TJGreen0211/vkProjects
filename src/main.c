@@ -64,7 +64,11 @@ typedef struct vkGraphics {
 	VkFormat swapChainImageFormat;
 	VkSampler textureSampler;
 	unsigned int deviceImageCount;
+	VkExtent2D swapChainExtent;
 } vkGraphics;
+
+//VkImage *swapChainImages, VkFormat swapChainImageFormat, VkExtent2D swapChainExtent
+//graphics.swapChainImages, graphics.swapChainImageFormat, graphics.swapChainExtent
 
 vkGraphics graphics;
 
@@ -90,7 +94,6 @@ uint16_t vertexIndices[12] = {
 	4, 5, 6, 6, 7, 4
 };
 
-VkExtent2D swapChainExtent;
 VkImageView *swapChainImageViews;
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
@@ -290,8 +293,7 @@ void createSwapChain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurface
 	vkGetSwapchainImagesKHR(device, swapChain[0], &imageCount, graphics.swapChainImages);
 
 	graphics.swapChainImageFormat = surfaceFormat.format;
-	swapChainExtent = extent;
-
+	graphics.swapChainExtent = extent;
 }
 
 void createImageViews() {
@@ -477,15 +479,15 @@ void createGraphicsPipeline() {
 	VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
-		.width = (float)swapChainExtent.width,
-		.height = (float)swapChainExtent.height,
+		.width = (float)graphics.swapChainExtent.width,
+		.height = (float)graphics.swapChainExtent.height,
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
 
 	VkRect2D scissor = {
 		.offset = {0, 0},
-		.extent = swapChainExtent,
+		.extent = graphics.swapChainExtent,
 	};
 
 	VkPipelineViewportStateCreateInfo viewportState = {
@@ -629,8 +631,8 @@ void createFramebuffers() {
 			.renderPass = renderPass,
 			.attachmentCount = 2,
 			.pAttachments = attachments,
-			.width = swapChainExtent.width,
-			.height = swapChainExtent.height,
+			.width = graphics.swapChainExtent.width,
+			.height = graphics.swapChainExtent.height,
 			.layers = 1,
 		};
 
@@ -683,7 +685,7 @@ void createCommandBuffer() {
 			.renderPass = renderPass,
 			.framebuffer = swapChainFramebuffers[i],
 			.renderArea.offset = {0, 0},
-			.renderArea.extent = swapChainExtent,
+			.renderArea.extent = graphics.swapChainExtent,
 		};
 
 		VkClearValue clearColor = {.color = {0.0f, 0.0f, 0.0f, 1.0f},};
@@ -863,7 +865,7 @@ void createTextureImageView(VkDevice device, VkImage textureImage) {
 void createDepthResources() {
 	VkFormat depthFormat = findDepthFormat();
 
-	createImage(graphics.device, graphics.physicalDevice, swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
+	createImage(graphics.device, graphics.physicalDevice, graphics.swapChainExtent.width, graphics.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
 	depthImageView = createImageView(graphics.device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 
@@ -929,7 +931,7 @@ void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
 	mat4 m = translate(0.0, -1.0, 0.0);
 	mat4 v = getViewMatrix();
-	mat4 p = perspective(45.0, swapChainExtent.width / swapChainExtent.height, 0.1, 100000);
+	mat4 p = perspective(45.0, graphics.swapChainExtent.width / graphics.swapChainExtent.height, 0.1, 100000);
 	//p.m[1][1] *= -1;
 
 	uniformBufferObject ubo[1] = {
