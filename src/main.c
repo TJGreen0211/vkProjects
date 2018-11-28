@@ -34,11 +34,34 @@
 double deltaTime = 0.0;
 double lastFrame = 0.0;
 
+struct texture_object {
+    VkSampler sampler;
+
+    VkImage image;
+    VkImageLayout imageLayout;
+
+    VkMemoryAllocateInfo mem_alloc;
+    VkDeviceMemory mem;
+    VkImageView view;
+    int32_t tex_width, tex_height;
+};
+
 typedef struct uniformBufferObject {
 	float model[16];
 	float view[16];
 	float projection[16];
 } uniformBufferObject;
+
+//typedef struct SwapchainImageResources {
+//    VkImage image;
+//    VkCommandBuffer cmd;
+//    VkCommandBuffer graphics_to_present_cmd;
+//    VkImageView view;
+//    VkBuffer uniform_buffer;
+//    VkDeviceMemory uniform_memory;
+//    VkFramebuffer framebuffer;
+//    VkDescriptorSet descriptor_set;
+//} SwapchainImageResources;
 
 typedef struct vkGraphics {
 	VkDevice device;
@@ -58,19 +81,12 @@ typedef struct vkGraphics {
 	VkBuffer *uniformBuffer;
 	VkDeviceMemory *uniformBufferMemory;
 
-	VkSwapchainKHR swapChain;
 	VkImageView textureImageView;
-	VkImage *swapChainImages;
-	VkFormat swapChainImageFormat;
 	VkSampler textureSampler;
-	unsigned int deviceImageCount;
-	VkExtent2D swapChainExtent;
 } vkGraphics;
 
-//VkImage *swapChainImages, VkFormat swapChainImageFormat, VkExtent2D swapChainExtent
-//graphics.swapChainImages, graphics.swapChainImageFormat, graphics.swapChainExtent
-
 vkGraphics graphics;
+vkSwapchain graphicsSwapchain;
 
 const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
@@ -94,7 +110,6 @@ uint16_t vertexIndices[12] = {
 	4, 5, 6, 6, 7, 4
 };
 
-VkImageView *swapChainImageViews;
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
@@ -154,20 +169,20 @@ void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT
 }
 
 void cleanupSwapChain() {
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		vkDestroyFramebuffer(graphics.device, swapChainFramebuffers[i], NULL);
 	}
-	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphics.deviceImageCount, commandBuffers);
+	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphicsSwapchain.deviceImageCount, commandBuffers);
 
 	vkDestroyPipeline(graphics.device, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(graphics.device, pipelineLayout, NULL);
 	vkDestroyRenderPass(graphics.device, renderPass, NULL);
 
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
-		vkDestroyImageView(graphics.device, swapChainImageViews[i], NULL);
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
+		vkDestroyImageView(graphics.device, graphicsSwapchain.swapChainImageViews[i], NULL);
 	}
 
-	vkDestroySwapchainKHR(graphics.device, graphics.swapChain, NULL);
+	vkDestroySwapchainKHR(graphics.device, graphicsSwapchain.swapChain, NULL);
 }
 
 void cleanup() {
@@ -184,7 +199,7 @@ void cleanup() {
 	vkDestroyDescriptorPool(graphics.device, descriptorPool, NULL);
 	vkDestroyDescriptorSetLayout(graphics.device, descriptorSetLayout, NULL);
 
-	for (unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	for (unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		vkDestroyBuffer(graphics.device, graphics.uniformBuffer[i], NULL);
 		vkFreeMemory(graphics.device, graphics.uniformBufferMemory[i], NULL);
 	}
@@ -238,72 +253,14 @@ void setupDebugCallback() {
 	//}
 }
 
-void createSwapChain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSwapchainKHR *swapChain, unsigned int *deviceImageCount) {
-	unsigned int formatCount;
-	unsigned int presentModeCount;
-	swapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, surface, &formatCount, &presentModeCount);
-
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats, formatCount);
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes, presentModeCount);
-	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, window);
-	unsigned int imageCount = swapChainSupport.capabilities.minImageCount + 1;
-	deviceImageCount[0] = imageCount;
-
-	if(swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-		imageCount = swapChainSupport.capabilities.maxImageCount;
-	}
-
-	VkSwapchainCreateInfoKHR createInfo = {
-		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = surface,
-		.minImageCount = imageCount,
-		.imageFormat = surfaceFormat.format,
-		.imageColorSpace = surfaceFormat.colorSpace,
-		.imageExtent = extent,
-		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-	};
-
-	QueueFamilyIndices *indices = findQueueFamilies(physicalDevice, surface);
-	unsigned int queueFamilyIndices[] = {(unsigned int)indices->graphicsFamily, (unsigned int)indices->presentFamily};
-
-	if (indices->graphicsFamily != indices->presentFamily) {
-		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		createInfo.queueFamilyIndexCount = 2;
-		createInfo.pQueueFamilyIndices = queueFamilyIndices;
-	}
-	else {
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	}
-
-	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	createInfo.presentMode = presentMode;
-	createInfo.clipped = VK_TRUE;
-
-	createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-	if(vkCreateSwapchainKHR(device, &createInfo, NULL, swapChain) != VK_SUCCESS) {
-		printf("Failed to create swap chain.\n");
-		cleanup();
-	}
-
-	vkGetSwapchainImagesKHR(device, swapChain[0], &imageCount, NULL);
-	graphics.swapChainImages = malloc(imageCount*sizeof(VkImage));
-	vkGetSwapchainImagesKHR(device, swapChain[0], &imageCount, graphics.swapChainImages);
-
-	graphics.swapChainImageFormat = surfaceFormat.format;
-	graphics.swapChainExtent = extent;
-}
-
 void createImageViews() {
-	swapChainImageViews = malloc(graphics.deviceImageCount*sizeof(VkImageView));
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	graphicsSwapchain.swapChainImageViews = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkImageView));
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		VkImageViewCreateInfo createInfo = {
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = graphics.swapChainImages[i],
+			.image = graphicsSwapchain.swapChainImages[i],
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = graphics.swapChainImageFormat,
+			.format = graphicsSwapchain.swapChainImageFormat,
 			.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
 			.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
 			.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -315,7 +272,7 @@ void createImageViews() {
 			.subresourceRange.layerCount = 1,
 		};
 
-		if(vkCreateImageView(graphics.device, &createInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS) {
+		if(vkCreateImageView(graphics.device, &createInfo, NULL, &graphicsSwapchain.swapChainImageViews[i]) != VK_SUCCESS) {
 			printf("Failed to create VK image views\n");
 			cleanup();
 		}
@@ -366,7 +323,7 @@ VkFormat findDepthFormat() {
 
 void createRenderPass() {
 	VkAttachmentDescription colorAttachment = {
-		.format = graphics.swapChainImageFormat,
+		.format = graphicsSwapchain.swapChainImageFormat,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -479,15 +436,15 @@ void createGraphicsPipeline() {
 	VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
-		.width = (float)graphics.swapChainExtent.width,
-		.height = (float)graphics.swapChainExtent.height,
+		.width = (float)graphicsSwapchain.swapChainExtent.width,
+		.height = (float)graphicsSwapchain.swapChainExtent.height,
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
 
 	VkRect2D scissor = {
 		.offset = {0, 0},
-		.extent = graphics.swapChainExtent,
+		.extent = graphicsSwapchain.swapChainExtent,
 	};
 
 	VkPipelineViewportStateCreateInfo viewportState = {
@@ -619,10 +576,10 @@ void createGraphicsPipeline() {
 }
 
 void createFramebuffers() {
-	swapChainFramebuffers = malloc(graphics.deviceImageCount*sizeof(VkFramebuffer));
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	swapChainFramebuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkFramebuffer));
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		VkImageView attachments[2] = {
-			swapChainImageViews[i],
+			graphicsSwapchain.swapChainImageViews[i],
 			depthImageView
 		};
 
@@ -631,8 +588,8 @@ void createFramebuffers() {
 			.renderPass = renderPass,
 			.attachmentCount = 2,
 			.pAttachments = attachments,
-			.width = graphics.swapChainExtent.width,
-			.height = graphics.swapChainExtent.height,
+			.width = graphicsSwapchain.swapChainExtent.width,
+			.height = graphicsSwapchain.swapChainExtent.height,
 			.layers = 1,
 		};
 
@@ -659,12 +616,12 @@ void createCommandPool() {
 }
 
 void createCommandBuffer() {
-	commandBuffers = malloc(graphics.deviceImageCount*sizeof(VkCommandBuffer));
+	commandBuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = graphics.commandPool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = (uint32_t)graphics.deviceImageCount,
+		.commandBufferCount = (uint32_t)graphicsSwapchain.deviceImageCount,
 	};
 
 	if(vkAllocateCommandBuffers(graphics.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
@@ -672,7 +629,7 @@ void createCommandBuffer() {
 		cleanup();
 	}
 
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		VkCommandBufferBeginInfo beginInfo = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
@@ -685,7 +642,7 @@ void createCommandBuffer() {
 			.renderPass = renderPass,
 			.framebuffer = swapChainFramebuffers[i],
 			.renderArea.offset = {0, 0},
-			.renderArea.extent = graphics.swapChainExtent,
+			.renderArea.extent = graphicsSwapchain.swapChainExtent,
 		};
 
 		VkClearValue clearColor = {.color = {0.0f, 0.0f, 0.0f, 1.0f},};
@@ -777,24 +734,24 @@ void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsig
 
 void createDescriptorSets() {
 	VkDescriptorSetLayout *layouts;
-	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphics.deviceImageCount);
+	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphicsSwapchain.deviceImageCount);
 
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		layouts[i] = descriptorSetLayout;
 	}
 	VkDescriptorSetAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 		.descriptorPool = descriptorPool,
-		.descriptorSetCount = graphics.deviceImageCount,
+		.descriptorSetCount = graphicsSwapchain.deviceImageCount,
 		.pSetLayouts = layouts,
 	};
 
-	descriptorSets = malloc(sizeof(VkDescriptorSet)*graphics.deviceImageCount);
+	descriptorSets = malloc(sizeof(VkDescriptorSet)*graphicsSwapchain.deviceImageCount);
 	if(vkAllocateDescriptorSets(graphics.device, &allocInfo, descriptorSets) != VK_SUCCESS) {
 		printf("Failed to allocate descriptor sets.");
 	}
 
-	for(unsigned int i = 0; i < graphics.deviceImageCount; i++) {
+	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		VkDescriptorBufferInfo bufferInfo = {
 			.buffer = graphics.uniformBuffer[i],
 			.offset = 0,
@@ -841,15 +798,15 @@ void createDescriptorPool() {
 
 	VkDescriptorPoolSize *poolSizes = malloc(2*sizeof(VkDescriptorPoolSize));
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = graphics.deviceImageCount;
+	poolSizes[0].descriptorCount = graphicsSwapchain.deviceImageCount;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = graphics.deviceImageCount;
+	poolSizes[1].descriptorCount = graphicsSwapchain.deviceImageCount;
 
 	VkDescriptorPoolCreateInfo poolInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.poolSizeCount = 2,
 		.pPoolSizes = poolSizes,
-		.maxSets = graphics.deviceImageCount,
+		.maxSets = graphicsSwapchain.deviceImageCount,
 	};
 
 	if(vkCreateDescriptorPool(graphics.device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
@@ -865,7 +822,7 @@ void createTextureImageView(VkDevice device, VkImage textureImage) {
 void createDepthResources() {
 	VkFormat depthFormat = findDepthFormat();
 
-	createImage(graphics.device, graphics.physicalDevice, graphics.swapChainExtent.width, graphics.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
+	createImage(graphics.device, graphics.physicalDevice, graphicsSwapchain.swapChainExtent.width, graphicsSwapchain.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
 	depthImageView = createImageView(graphics.device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 
@@ -884,7 +841,8 @@ void initVulkan() {
 	createDescriptorSetLayout();
 	createCommandPool();
 
-	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphics.swapChain, &graphics.deviceImageCount);
+	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
+
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
@@ -897,7 +855,7 @@ void initVulkan() {
 
 	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphics.vertexBuffer, &graphics.vertexBufferMemory);
 	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphics.indexBuffer, &graphics.indexBufferMemory, vertexIndices);
-	createUniformBuffer(graphics.device, graphics.physicalDevice, graphics.deviceImageCount, graphics.uniformBuffer, graphics.uniformBufferMemory);
+	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, graphics.uniformBuffer, graphics.uniformBufferMemory);
 
 	createDescriptorPool();
 	createDescriptorSets();
@@ -913,7 +871,7 @@ void recreateSwapChain() {
 
 	cleanupSwapChain();
 
-	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphics.swapChain, &graphics.deviceImageCount);
+	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
@@ -931,7 +889,7 @@ void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
 	mat4 m = translate(0.0, -1.0, 0.0);
 	mat4 v = getViewMatrix();
-	mat4 p = perspective(45.0, graphics.swapChainExtent.width / graphics.swapChainExtent.height, 0.1, 100000);
+	mat4 p = perspective(45.0, graphicsSwapchain.swapChainExtent.width / graphicsSwapchain.swapChainExtent.height, 0.1, 100000);
 	//p.m[1][1] *= -1;
 
 	uniformBufferObject ubo[1] = {
@@ -973,7 +931,7 @@ void drawFrame() {
 	lastFrame = currentFrame;
 
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(graphics.device, graphics.swapChain, UINT_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(graphics.device, graphicsSwapchain.swapChain, UINT_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 	if(result == VK_ERROR_OUT_OF_DATE_KHR) {
 		recreateSwapChain();
@@ -1012,7 +970,7 @@ void drawFrame() {
 		.pWaitSemaphores = signalSemaphores,
 	};
 
-	VkSwapchainKHR swapChains[] = {graphics.swapChain};
+	VkSwapchainKHR swapChains[] = {graphicsSwapchain.swapChain};
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &imageIndex;
