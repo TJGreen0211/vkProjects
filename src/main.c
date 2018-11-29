@@ -81,6 +81,7 @@ typedef struct vkGraphics {
 vkGraphics graphics;
 vkSwapchain graphicsSwapchain;
 vkBuffer graphicsBuffer;
+vkTexture depthTexture;
 
 const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
@@ -116,8 +117,6 @@ VkDescriptorSetLayout descriptorSetLayout;
 VkDescriptorPool descriptorPool;
 VkDescriptorSet *descriptorSets;
 
-VkImage depthImage;
-VkDeviceMemory depthImageMemory;
 VkImageView depthImageView;
 
 VkSemaphore imageAvailableSemaphore;
@@ -182,8 +181,8 @@ void cleanupSwapChain() {
 void cleanup() {
 	cleanupSwapChain();
 	vkDestroyImageView(graphics.device, depthImageView, NULL);
-    vkDestroyImage(graphics.device, depthImage, NULL);
-    vkFreeMemory(graphics.device, depthImageMemory, NULL);
+    vkDestroyImage(graphics.device, depthTexture.image, NULL);
+    vkFreeMemory(graphics.device, depthTexture.imageMemory, NULL);
 
 	vkDestroySampler(graphics.device, graphics.textureSampler, NULL);
 	vkDestroyImageView(graphics.device, graphics.textureImageView, NULL);
@@ -289,7 +288,7 @@ VkFormat findDepthFormat() {
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-void createRenderPass(VkDevice device, vkSwapchain s) {
+void createRenderPass(VkDevice device, vkSwapchain *s) {
 	VkAttachmentDescription colorAttachment = {
 		.format = s->swapChainImageFormat,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -787,14 +786,14 @@ void createTextureImageView(VkDevice device, VkImage textureImage) {
 	graphics.textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void createDepthResources() {
+void createDepthResources(vkTexture *t) {
 	VkFormat depthFormat = findDepthFormat();
 
-	createImage(graphics.device, graphics.physicalDevice, graphicsSwapchain.swapChainExtent.width, graphicsSwapchain.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &depthImage, &depthImageMemory);
-	depthImageView = createImageView(graphics.device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	createImage(graphics.device, graphics.physicalDevice, graphicsSwapchain.swapChainExtent.width, graphicsSwapchain.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &t->image, &t->imageMemory);
+	depthImageView = createImageView(graphics.device, t->image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 
-	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, t->image, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 	}
 
@@ -812,9 +811,9 @@ void initVulkan() {
 	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
 	createImageViews(graphics.device, &graphicsSwapchain);
 
-	createRenderPass(graphics.device, , &graphicsSwapchain);
+	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
-	createDepthResources();
+	createDepthResources(&depthTexture);
 	createFramebuffers();
 
 	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &graphics.textureImage, &graphics.textureImageMemory);
@@ -843,7 +842,8 @@ void recreateSwapChain() {
 	createImageViews(graphics.device, &graphicsSwapchain);
 	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
-	createDepthResources();
+
+	createDepthResources(&depthTexture);
 	createFramebuffers();
 	createCommandBuffer();
 }
