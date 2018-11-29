@@ -74,19 +74,13 @@ typedef struct vkGraphics {
 	VkCommandPool commandPool;
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-	VkBuffer *uniformBuffer;
-	VkDeviceMemory *uniformBufferMemory;
-
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 } vkGraphics;
 
 vkGraphics graphics;
 vkSwapchain graphicsSwapchain;
+vkBuffer graphicsBuffer;
 
 const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
@@ -200,15 +194,15 @@ void cleanup() {
 	vkDestroyDescriptorSetLayout(graphics.device, descriptorSetLayout, NULL);
 
 	for (unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
-		vkDestroyBuffer(graphics.device, graphics.uniformBuffer[i], NULL);
-		vkFreeMemory(graphics.device, graphics.uniformBufferMemory[i], NULL);
+		vkDestroyBuffer(graphics.device, graphicsBuffer.uniformBuffer[i], NULL);
+		vkFreeMemory(graphics.device, graphicsBuffer.uniformBufferMemory[i], NULL);
 	}
 
-	vkDestroyBuffer(graphics.device, graphics.indexBuffer, NULL);
-	vkFreeMemory(graphics.device, graphics.indexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, graphicsBuffer.indexBuffer, NULL);
+	vkFreeMemory(graphics.device, graphicsBuffer.indexBufferMemory, NULL);
 
-	vkDestroyBuffer(graphics.device, graphics.vertexBuffer, NULL);
-	vkFreeMemory(graphics.device, graphics.vertexBufferMemory, NULL);
+	vkDestroyBuffer(graphics.device, graphicsBuffer.vertexBuffer, NULL);
+	vkFreeMemory(graphics.device, graphicsBuffer.vertexBufferMemory, NULL);
 
 	vkDestroySemaphore(graphics.device, renderFinishedSemaphore, NULL);
 	vkDestroySemaphore(graphics.device, imageAvailableSemaphore, NULL);
@@ -253,32 +247,6 @@ void setupDebugCallback() {
 	//}
 }
 
-void createImageViews() {
-	graphicsSwapchain.swapChainImageViews = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkImageView));
-	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
-		VkImageViewCreateInfo createInfo = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = graphicsSwapchain.swapChainImages[i],
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = graphicsSwapchain.swapChainImageFormat,
-			.components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-			.subresourceRange.baseMipLevel = 0,
-			.subresourceRange.levelCount =1,
-			.subresourceRange.baseArrayLayer = 0,
-			.subresourceRange.layerCount = 1,
-		};
-
-		if(vkCreateImageView(graphics.device, &createInfo, NULL, &graphicsSwapchain.swapChainImageViews[i]) != VK_SUCCESS) {
-			printf("Failed to create VK image views\n");
-			cleanup();
-		}
-	}
-}
-
 VkShaderModule createShaderModule(const char* code, size_t shaderSize) {
 	//uint32_t *pCodeArray = malloc(shaderSize*sizeof(uint32_t));
 	//for(int i = 0; i < shaderSize; i++) {
@@ -321,9 +289,9 @@ VkFormat findDepthFormat() {
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-void createRenderPass() {
+void createRenderPass(VkDevice device, vkSwapchain s) {
 	VkAttachmentDescription colorAttachment = {
-		.format = graphicsSwapchain.swapChainImageFormat,
+		.format = s->swapChainImageFormat,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -384,7 +352,7 @@ void createRenderPass() {
 		.pDependencies = &dependency,
 	};
 
-	if(vkCreateRenderPass(graphics.device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
+	if(vkCreateRenderPass(device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
 		printf("Failed to create render pass.\n");
 		cleanup();
 	}
@@ -659,10 +627,10 @@ void createCommandBuffer() {
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-			VkBuffer vertexBuffers[] = {graphics.vertexBuffer};
+			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], graphics.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
 			//vkCmdDraw(commandBuffers[i], (uint32_t)(sizeof(vertices)/sizeof(vertices[0])), 1, 0, 0);
 			vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
@@ -724,11 +692,11 @@ void createDescriptorSetLayout() {
 void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, VkBuffer *uniformBuffer, VkDeviceMemory *uniformBufferMemory) {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
-	graphics.uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
-	graphics.uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
+	graphicsBuffer.uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
+	graphicsBuffer.uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
 
 	for(unsigned int i = 0; i < imageCount; i++) {
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &graphics.uniformBuffer[i], &graphics.uniformBufferMemory[i]);
+		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &graphicsBuffer.uniformBuffer[i], &graphicsBuffer.uniformBufferMemory[i]);
 	}
 }
 
@@ -753,7 +721,7 @@ void createDescriptorSets() {
 
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		VkDescriptorBufferInfo bufferInfo = {
-			.buffer = graphics.uniformBuffer[i],
+			.buffer = graphicsBuffer.uniformBuffer[i],
 			.offset = 0,
 			.range = sizeof(uniformBufferObject),
 		};
@@ -842,9 +810,9 @@ void initVulkan() {
 	createCommandPool();
 
 	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
+	createImageViews(graphics.device, &graphicsSwapchain);
 
-	createImageViews();
-	createRenderPass();
+	createRenderPass(graphics.device, , &graphicsSwapchain);
 	createGraphicsPipeline();
 	createDepthResources();
 	createFramebuffers();
@@ -853,9 +821,9 @@ void initVulkan() {
 	createTextureImageView(graphics.device, graphics.textureImage);
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphics.vertexBuffer, &graphics.vertexBufferMemory);
-	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphics.indexBuffer, &graphics.indexBufferMemory, vertexIndices);
-	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, graphics.uniformBuffer, graphics.uniformBufferMemory);
+	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphicsBuffer.vertexBuffer, &graphicsBuffer.vertexBufferMemory);
+	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer.indexBuffer, &graphicsBuffer.indexBufferMemory, vertexIndices);
+	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, graphicsBuffer.uniformBuffer, graphicsBuffer.uniformBufferMemory);
 
 	createDescriptorPool();
 	createDescriptorSets();
@@ -872,8 +840,8 @@ void recreateSwapChain() {
 	cleanupSwapChain();
 
 	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
-	createImageViews();
-	createRenderPass();
+	createImageViews(graphics.device, &graphicsSwapchain);
+	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
 	createDepthResources();
 	createFramebuffers();
@@ -913,9 +881,9 @@ void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
 
 	//printf("asdf: %zu, %zu\n", sizeof(ubo), sizeof(uniformBufferObject));
 	void *data;
-	vkMapMemory(graphics.device, graphics.uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
+	vkMapMemory(graphics.device, graphicsBuffer.uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
 	memcpy(data, (const void *)&ubo[0], sizeof(ubo));
-	vkUnmapMemory(graphics.device, graphics.uniformBufferMemory[currentImage]);
+	vkUnmapMemory(graphics.device, graphicsBuffer.uniformBufferMemory[currentImage]);
 
 	//for(int i = 0; i < 48; i++) {
 	//	printf("%f, ", *((float *) ((char *) data + sizeof(float) * i)));

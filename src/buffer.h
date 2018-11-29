@@ -7,6 +7,16 @@
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 
+typedef struct vkBuffer {
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
+	VkBuffer *uniformBuffer;
+	VkDeviceMemory *uniformBufferMemory;
+
+} vkBuffer;
+
 typedef struct vertexData {
 	float pos[3];
 	float color[3];
@@ -26,7 +36,6 @@ typedef struct vertexData {
 
 VkCommandBuffer beginSingleTimeCommands(VkDevice vkDevice, VkCommandPool pool);
 void endSingleTimeCommands(VkDevice vkDevice, VkQueue queue, VkCommandBuffer commandBuffer, VkCommandPool pool);
-void copyBuffer(VkDevice vkDevice, VkCommandPool pool, VkQueue queue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory);
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory);
 void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint16_t *verts);
