@@ -1,5 +1,7 @@
 #include "instance.h"
 
+const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
+
 unsigned int checkValidationLayerSupport(const char **validation) {
 	unsigned int layerCount;
 	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
@@ -42,8 +44,8 @@ const char **getRequiredExtensions(unsigned int enableValidation, unsigned int *
 	return extensions;
 }
 
-void createInstance(unsigned int enableValidation, VkInstance *instance, const char **validation) {
-	if(enableValidation && !checkValidationLayerSupport(validation)) {
+void createInstance(unsigned int enableValidation, VkInstance *instance) {
+	if(enableValidation && !checkValidationLayerSupport(validationLayers)) {
 		printf("Validation layers requested but not available.\n");
 		//cleanup();
 	}
@@ -68,8 +70,8 @@ void createInstance(unsigned int enableValidation, VkInstance *instance, const c
 	};
 
 	if(enableValidation) {
-		createInfo.enabledLayerCount = sizeof(validation)/sizeof(validation[0]);
-		createInfo.ppEnabledLayerNames = validation;
+		createInfo.enabledLayerCount = sizeof(validationLayers)/sizeof(validationLayers[0]);
+		createInfo.ppEnabledLayerNames = validationLayers;
 	}
 
 	/*unsigned int extensionCount = 0;

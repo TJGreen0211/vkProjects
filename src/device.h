@@ -20,15 +20,34 @@ typedef struct QueueFamilyIndices {
 //	VkQueue presentQueue;
 //} vkGraphicsDevice;
 
+typedef struct vkGraphics {
+	VkDevice device;
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+	VkInstance instance;
+	VkSurfaceKHR surface;
+	VkPhysicalDevice physicalDevice;
+
+	VkCommandPool commandPool;
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkImageView textureImageView;
+	VkSampler textureSampler;
+	VkDescriptorSetLayout descriptorSetLayout;
+} vkGraphics;
+
 typedef struct swapChainSupportDetails {
 	VkSurfaceCapabilitiesKHR capabilities;
 	VkSurfaceFormatKHR *formats;
 	VkPresentModeKHR *presentModes;
 } swapChainSupportDetails;
 
+void setupDebugCallback();
 QueueFamilyIndices *findQueueFamilies(VkPhysicalDevice vkDevice, VkSurfaceKHR surface);
 swapChainSupportDetails querySwapChainSupport(VkPhysicalDevice vkDevice, VkSurfaceKHR surface, unsigned int *formatCount, unsigned int *presentModeCount);
-void pickPhysicalDevice(VkPhysicalDevice *physicalDevice, VkInstance instance, VkSurfaceKHR surface);
-void createLogicalDevice(VkDevice *device, VkQueue *graphicsQueue, VkQueue *presentQueue, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+void pickPhysicalDevice(vkGraphics *g);
+void createLogicalDevice(vkGraphics *g);
+void createDescriptorSetLayout(vkGraphics *g);
+void createCommandPool(vkGraphics *g);
 
 #endif

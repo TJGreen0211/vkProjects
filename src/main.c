@@ -63,27 +63,10 @@ typedef struct uniformBufferObject {
 //    VkDescriptorSet descriptor_set;
 //} SwapchainImageResources;
 
-typedef struct vkGraphics {
-	VkDevice device;
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
-	VkInstance instance;
-	VkSurfaceKHR surface;
-	VkPhysicalDevice physicalDevice;
-
-	VkCommandPool commandPool;
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
-	VkSampler textureSampler;
-} vkGraphics;
-
 vkGraphics graphics;
 vkSwapchain graphicsSwapchain;
 vkBuffer graphicsBuffer;
 vkTexture depthTexture;
-
-const char *validationLayers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -111,8 +94,6 @@ VkPipeline graphicsPipeline;
 VkFramebuffer *swapChainFramebuffers;
 VkCommandBuffer *commandBuffers;
 GLFWwindow *window;
-
-VkDescriptorSetLayout descriptorSetLayout;
 
 VkDescriptorPool descriptorPool;
 VkDescriptorSet *descriptorSets;
@@ -190,7 +171,7 @@ void cleanup() {
 	vkFreeMemory(graphics.device, graphics.textureImageMemory, NULL);
 
 	vkDestroyDescriptorPool(graphics.device, descriptorPool, NULL);
-	vkDestroyDescriptorSetLayout(graphics.device, descriptorSetLayout, NULL);
+	vkDestroyDescriptorSetLayout(graphics.device, graphics.descriptorSetLayout, NULL);
 
 	for (unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		vkDestroyBuffer(graphics.device, graphicsBuffer.uniformBuffer[i], NULL);
@@ -228,23 +209,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugReportFlagsEXT flags,
 	return VK_FALSE;
 }
 
-//VkResult CreateDebugReportCallbackExt(VkInstance instance, const VkDebugReportCallbackCreateInfoExt* pCreateInfo, ) {
-//
-//}
-
-void setupDebugCallback() {
-	//if(!enableValidationLayers) return;
-
-	//VkDebugUtilsMessengerCreateInfoEXT createInfo = {
-	//	.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
-	//	.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT,
-	//	.pfnCallback = debugCallback,
-	//}
-	//if (CreateDebugReportCallbackEXT(instance, &createInfo, NULL, &callback) != VK_SUCCESS) {
-	//	printf("failed to set up debug callback");
-	//	cleanup();
-	//}
-}
 
 VkShaderModule createShaderModule(const char* code, size_t shaderSize) {
 	//uint32_t *pCodeArray = malloc(shaderSize*sizeof(uint32_t));
@@ -501,7 +465,7 @@ void createGraphicsPipeline() {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &descriptorSetLayout,
+		.pSetLayouts = &graphics.descriptorSetLayout,
 		//.pSetLayouts = NULL,
 		//.pushConstantRangeCount = 0,
 		//.pPushConstantRanges = 0,
@@ -565,21 +529,6 @@ void createFramebuffers() {
 			cleanup();
 		}
 	}
-}
-
-void createCommandPool() {
-	QueueFamilyIndices *queueFamilyIndices = findQueueFamilies(graphics.physicalDevice, graphics.surface);
-
-	VkCommandPoolCreateInfo poolInfo = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.queueFamilyIndex = queueFamilyIndices->graphicsFamily,
-		.flags = 0,
-	};
-
-	if(vkCreateCommandPool(graphics.device, &poolInfo, NULL, &graphics.commandPool) != VK_SUCCESS) {
-		printf("Failed to create command pool.\n");
-	}
-
 }
 
 void createCommandBuffer() {
@@ -655,39 +604,6 @@ void createSemaphores() {
 	}
 }
 
-void createDescriptorSetLayout() {
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {
-		.binding = 0,
-		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = 1,
-		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-		.pImmutableSamplers = NULL,
-	};
-
-	VkDescriptorSetLayoutBinding samplerLayoutBinding = {
-		.binding = 1,
-		.descriptorCount = 1,
-		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.pImmutableSamplers = NULL,
-		.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-	};
-
-	VkDescriptorSetLayoutBinding *bindings = malloc(2*sizeof(VkDescriptorSetLayoutBinding));
-	bindings[0] = uboLayoutBinding;
-	bindings[1] = samplerLayoutBinding;
-
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount = 2,
-		.pBindings = bindings,
-	};
-
-	if (vkCreateDescriptorSetLayout(graphics.device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
-		printf("Failed to create descriptor set layout.");
-		cleanup();
-	}
-}
-
 void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, VkBuffer *uniformBuffer, VkDeviceMemory *uniformBufferMemory) {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
@@ -704,7 +620,7 @@ void createDescriptorSets() {
 	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphicsSwapchain.deviceImageCount);
 
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
-		layouts[i] = descriptorSetLayout;
+		layouts[i] = graphics.descriptorSetLayout;
 	}
 	VkDescriptorSetAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -798,21 +714,21 @@ void createDepthResources(vkTexture *t) {
 	}
 
 void initVulkan() {
-	createInstance(enableValidationLayers, &graphics.instance, validationLayers);
+	createInstance(enableValidationLayers, &graphics.instance);
 	setupDebugCallback();
 	createSurface(graphics.instance, &graphics.surface, window);
 
 	graphics.physicalDevice = VK_NULL_HANDLE;
-	pickPhysicalDevice(&graphics.physicalDevice, graphics.instance, graphics.surface);
-	createLogicalDevice(&graphics.device, &graphics.graphicsQueue, &graphics.presentQueue, graphics.physicalDevice, graphics.surface);
-	createDescriptorSetLayout();
-	createCommandPool();
+	pickPhysicalDevice(&graphics);
+	createLogicalDevice(&graphics);
+	createDescriptorSetLayout(&graphics);
+	createCommandPool(&graphics);
 
 	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
 	createImageViews(graphics.device, &graphicsSwapchain);
-
 	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
+	
 	createDepthResources(&depthTexture);
 	createFramebuffers();
 

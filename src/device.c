@@ -3,6 +3,24 @@
 const char *deviceExtension[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 const char *validationLayer[] = {"VK_LAYER_LUNARG_standard_validation"};
 
+//VkResult CreateDebugReportCallbackExt(VkInstance instance, const VkDebugReportCallbackCreateInfoExt* pCreateInfo, ) {
+//
+//}
+
+void setupDebugCallback() {
+	//if(!enableValidationLayers) return;
+
+	//VkDebugUtilsMessengerCreateInfoEXT createInfo = {
+	//	.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT,
+	//	.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT,
+	//	.pfnCallback = debugCallback,
+	//}
+	//if (CreateDebugReportCallbackEXT(instance, &createInfo, NULL, &callback) != VK_SUCCESS) {
+	//	printf("failed to set up debug callback");
+	//	cleanup();
+	//}
+}
+
 int checkComplete(int graphicsVal, int presentVal) {
 	return graphicsVal >= 0 && presentVal >= 0;
 }
@@ -111,30 +129,30 @@ int isDeviceSuitable(VkPhysicalDevice vkDevice, VkSurfaceKHR surface) {
 	return indices->isComplete(indices->graphicsFamily, indices->presentFamily) && extensionsSupported && swapChainSuitable && deviceFeatures.samplerAnisotropy;
 }
 
-void pickPhysicalDevice(VkPhysicalDevice *physicalDevice, VkInstance instance, VkSurfaceKHR surface) {
+void pickPhysicalDevice(vkGraphics *g) {
 	unsigned int deviceCount = 0;
-	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+	vkEnumeratePhysicalDevices(g->instance, &deviceCount, NULL);
 	if(deviceCount == 0) {
 		printf("GPU support for vulkan not available.\n");
 		//cleanup();
 	}
 	VkPhysicalDevice *devices = malloc(deviceCount*sizeof(VkPhysicalDevice));
-	vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+	vkEnumeratePhysicalDevices(g->instance, &deviceCount, devices);
 	for(int i = 0; i < (int)deviceCount; i++) {
-		if(isDeviceSuitable(devices[i], surface)) {
-			physicalDevice[0] = devices[i];
+		if(isDeviceSuitable(devices[i], g->surface)) {
+			g->physicalDevice = devices[i];
 			break;
 		}
 	}
-	if(physicalDevice == VK_NULL_HANDLE) {
+	if(&g->physicalDevice == VK_NULL_HANDLE) {
 		printf("Failed to find a suitable GPU.\n");
 		//cleanup();
 	}
 	free(devices);
 }
 
-void createLogicalDevice(VkDevice *device, VkQueue *graphicsQueue, VkQueue *presentQueue, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
-	QueueFamilyIndices *indices = findQueueFamilies(physicalDevice, surface);
+void createLogicalDevice(vkGraphics *g) {
+	QueueFamilyIndices *indices = findQueueFamilies(g->physicalDevice, g->surface);
 	float queuePriority = 1.0f;
 
 	//TODO: Change for multiple queue families.
@@ -149,7 +167,7 @@ void createLogicalDevice(VkDevice *device, VkQueue *graphicsQueue, VkQueue *pres
 	};
 
 	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+	vkGetPhysicalDeviceFeatures(g->physicalDevice, &deviceFeatures);
 
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
@@ -170,11 +188,58 @@ void createLogicalDevice(VkDevice *device, VkQueue *graphicsQueue, VkQueue *pres
 		createInfo.ppEnabledLayerNames = validationLayer;
 	}
 
-	if(vkCreateDevice(physicalDevice, &createInfo, NULL, device) != VK_SUCCESS) {
+	if(vkCreateDevice(g->physicalDevice, &createInfo, NULL, &g->device) != VK_SUCCESS) {
 		printf("Failed to create logical device.\n");
 		//cleanup();
 	}
 
-	vkGetDeviceQueue(device[0], indices->graphicsFamily, 0, graphicsQueue);
-	vkGetDeviceQueue(device[0], indices->presentFamily, 0, presentQueue);
+	vkGetDeviceQueue(g->device, indices->graphicsFamily, 0, &g->graphicsQueue);
+	vkGetDeviceQueue(g->device, indices->presentFamily, 0, &g->presentQueue);
+}
+
+void createDescriptorSetLayout(vkGraphics *g) {
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {
+		.binding = 0,
+		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = 1,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.pImmutableSamplers = NULL,
+	};
+
+	VkDescriptorSetLayoutBinding samplerLayoutBinding = {
+		.binding = 1,
+		.descriptorCount = 1,
+		.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		.pImmutableSamplers = NULL,
+		.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+	};
+
+	VkDescriptorSetLayoutBinding *bindings = malloc(2*sizeof(VkDescriptorSetLayoutBinding));
+	bindings[0] = uboLayoutBinding;
+	bindings[1] = samplerLayoutBinding;
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = 2,
+		.pBindings = bindings,
+	};
+
+	if (vkCreateDescriptorSetLayout(g->device, &layoutInfo, NULL, &g->descriptorSetLayout) != VK_SUCCESS) {
+		printf("Failed to create descriptor set layout.");
+		//cleanup();
+	}
+}
+
+void createCommandPool(vkGraphics *g) {
+	QueueFamilyIndices *queueFamilyIndices = findQueueFamilies(g->physicalDevice, g->surface);
+
+	VkCommandPoolCreateInfo poolInfo = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.queueFamilyIndex = queueFamilyIndices->graphicsFamily,
+		.flags = 0,
+	};
+
+	if(vkCreateCommandPool(g->device, &poolInfo, NULL, &g->commandPool) != VK_SUCCESS) {
+		printf("Failed to create command pool.\n");
+	}
 }
