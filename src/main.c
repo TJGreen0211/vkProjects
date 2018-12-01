@@ -46,12 +46,6 @@ struct texture_object {
     int32_t tex_width, tex_height;
 };
 
-typedef struct uniformBufferObject {
-	float model[16];
-	float view[16];
-	float projection[16];
-} uniformBufferObject;
-
 //typedef struct SwapchainImageResources {
 //    VkImage image;
 //    VkCommandBuffer cmd;
@@ -63,10 +57,16 @@ typedef struct uniformBufferObject {
 //    VkDescriptorSet descriptor_set;
 //} SwapchainImageResources;
 
+typedef struct pipeline {
+
+} pipeline;
+
+
 vkGraphics graphics;
 vkSwapchain graphicsSwapchain;
 vkBuffer graphicsBuffer;
 vkTexture depthTexture;
+vkTexture imageTexture;
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -88,17 +88,13 @@ uint16_t vertexIndices[12] = {
 	4, 5, 6, 6, 7, 4
 };
 
-VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
-VkFramebuffer *swapChainFramebuffers;
 VkCommandBuffer *commandBuffers;
 GLFWwindow *window;
 
 VkDescriptorPool descriptorPool;
 VkDescriptorSet *descriptorSets;
-
-VkImageView depthImageView;
 
 VkSemaphore imageAvailableSemaphore;
 VkSemaphore renderFinishedSemaphore;
@@ -144,13 +140,13 @@ void DestroyDebugReportCallbackEXT(VkInstance instance, VkDebugReportCallbackEXT
 
 void cleanupSwapChain() {
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
-		vkDestroyFramebuffer(graphics.device, swapChainFramebuffers[i], NULL);
+		vkDestroyFramebuffer(graphics.device, graphicsSwapchain.swapChainFramebuffers[i], NULL);
 	}
 	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphicsSwapchain.deviceImageCount, commandBuffers);
 
 	vkDestroyPipeline(graphics.device, graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(graphics.device, pipelineLayout, NULL);
-	vkDestroyRenderPass(graphics.device, renderPass, NULL);
+	vkDestroyRenderPass(graphics.device, graphicsSwapchain.renderPass, NULL);
 
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		vkDestroyImageView(graphics.device, graphicsSwapchain.swapChainImageViews[i], NULL);
@@ -161,14 +157,14 @@ void cleanupSwapChain() {
 
 void cleanup() {
 	cleanupSwapChain();
-	vkDestroyImageView(graphics.device, depthImageView, NULL);
+	vkDestroyImageView(graphics.device, depthTexture.imageView, NULL);
     vkDestroyImage(graphics.device, depthTexture.image, NULL);
     vkFreeMemory(graphics.device, depthTexture.imageMemory, NULL);
 
 	vkDestroySampler(graphics.device, graphics.textureSampler, NULL);
 	vkDestroyImageView(graphics.device, graphics.textureImageView, NULL);
-	vkDestroyImage(graphics.device, graphics.textureImage, NULL);
-	vkFreeMemory(graphics.device, graphics.textureImageMemory, NULL);
+	vkDestroyImage(graphics.device, imageTexture.image, NULL);
+	vkFreeMemory(graphics.device, imageTexture.imageMemory, NULL);
 
 	vkDestroyDescriptorPool(graphics.device, descriptorPool, NULL);
 	vkDestroyDescriptorSetLayout(graphics.device, graphics.descriptorSetLayout, NULL);
@@ -250,75 +246,6 @@ VkFormat findSupportedFormat(VkFormat *candidates, int numFormats, VkImageTiling
 VkFormat findDepthFormat() {
 	VkFormat candidates[3] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT};
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
-
-void createRenderPass(VkDevice device, vkSwapchain *s) {
-	VkAttachmentDescription colorAttachment = {
-		.format = s->swapChainImageFormat,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-	};
-
-	VkAttachmentDescription depthAttachment = {
-		.format = findDepthFormat(),
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-	};
-
-	VkAttachmentReference colorAttachmentRef = {
-		.attachment = 0,
-		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-	};
-
-	VkAttachmentReference depthAttachmentRef = {
-		.attachment = 1,
-		.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-	};
-
-	VkSubpassDescription subpass = {
-		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-		.colorAttachmentCount = 1,
-		.pColorAttachments = &colorAttachmentRef,
-		.pDepthStencilAttachment = &depthAttachmentRef,
-	};
-
-	VkSubpassDependency dependency = {
-		.srcSubpass = VK_SUBPASS_EXTERNAL,
-		.dstSubpass = 0,
-		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.srcAccessMask = 0,
-		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-	};
-
-	VkAttachmentDescription attachments[2];
-	attachments[0] = colorAttachment;
-	attachments[1] = depthAttachment;
-
-	VkRenderPassCreateInfo renderPassInfo = {
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-		.attachmentCount = 2,
-		.pAttachments = attachments,
-		.subpassCount = 1,
-		.pSubpasses = &subpass,
-		.dependencyCount = 1,
-		.pDependencies = &dependency,
-	};
-
-	if(vkCreateRenderPass(device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
-		printf("Failed to create render pass.\n");
-		cleanup();
-	}
 }
 
 void createGraphicsPipeline() {
@@ -489,7 +416,7 @@ void createGraphicsPipeline() {
 		.pColorBlendState = &colorBlending,
 		.pDynamicState = NULL,
 		.layout = pipelineLayout,
-		.renderPass = renderPass,
+		.renderPass = graphicsSwapchain.renderPass,
 		.subpass = 0,
 		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex = -1,
@@ -506,25 +433,25 @@ void createGraphicsPipeline() {
 	//printf("%zd, %zd\n", vertSize, fragSize);
 }
 
-void createFramebuffers() {
-	swapChainFramebuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkFramebuffer));
-	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
+void createFramebuffers(VkDevice device, vkSwapchain *s, VkImageView depthImageView) {
+	s->swapChainFramebuffers = malloc(s->deviceImageCount*sizeof(VkFramebuffer));
+	for(unsigned int i = 0; i < s->deviceImageCount; i++) {
 		VkImageView attachments[2] = {
-			graphicsSwapchain.swapChainImageViews[i],
+			s->swapChainImageViews[i],
 			depthImageView
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = renderPass,
+			.renderPass = s->renderPass,
 			.attachmentCount = 2,
 			.pAttachments = attachments,
-			.width = graphicsSwapchain.swapChainExtent.width,
-			.height = graphicsSwapchain.swapChainExtent.height,
+			.width = s->swapChainExtent.width,
+			.height = s->swapChainExtent.height,
 			.layers = 1,
 		};
 
-		if(vkCreateFramebuffer(graphics.device, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+		if(vkCreateFramebuffer(device, &framebufferInfo, NULL, &s->swapChainFramebuffers[i]) != VK_SUCCESS) {
 			printf("Failed to create framebuffer.\n");
 			cleanup();
 		}
@@ -555,8 +482,8 @@ void createCommandBuffer() {
 
 		VkRenderPassBeginInfo renderPassInfo = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-			.renderPass = renderPass,
-			.framebuffer = swapChainFramebuffers[i],
+			.renderPass = graphicsSwapchain.renderPass,
+			.framebuffer = graphicsSwapchain.swapChainFramebuffers[i],
 			.renderArea.offset = {0, 0},
 			.renderArea.extent = graphicsSwapchain.swapChainExtent,
 		};
@@ -604,14 +531,14 @@ void createSemaphores() {
 	}
 }
 
-void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, VkBuffer *uniformBuffer, VkDeviceMemory *uniformBufferMemory) {
+void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, vkBuffer *b) {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
-	graphicsBuffer.uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
-	graphicsBuffer.uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
+	b->uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
+	b->uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
 
 	for(unsigned int i = 0; i < imageCount; i++) {
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &graphicsBuffer.uniformBuffer[i], &graphicsBuffer.uniformBufferMemory[i]);
+		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &b->uniformBuffer[i], &graphicsBuffer.uniformBufferMemory[i]);
 	}
 }
 
@@ -703,13 +630,13 @@ void createTextureImageView(VkDevice device, VkImage textureImage) {
 }
 
 void createDepthResources(vkTexture *t) {
-	VkFormat depthFormat = findDepthFormat();
+	t->format = findDepthFormat();
 
-	createImage(graphics.device, graphics.physicalDevice, graphicsSwapchain.swapChainExtent.width, graphicsSwapchain.swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &t->image, &t->imageMemory);
-	depthImageView = createImageView(graphics.device, t->image, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	createImage(graphics.device, graphics.physicalDevice, graphicsSwapchain.swapChainExtent.width, graphicsSwapchain.swapChainExtent.height, t->format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &t->image, &t->imageMemory);
+	t->imageView = createImageView(graphics.device, t->image, t->format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 
-	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, t->image, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, t->image, t->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
 	}
 
@@ -718,27 +645,22 @@ void initVulkan() {
 	setupDebugCallback();
 	createSurface(graphics.instance, &graphics.surface, window);
 
-	graphics.physicalDevice = VK_NULL_HANDLE;
-	pickPhysicalDevice(&graphics);
-	createLogicalDevice(&graphics);
-	createDescriptorSetLayout(&graphics);
-	createCommandPool(&graphics);
+	initGraphics(&graphics);
+	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
-	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
-	createImageViews(graphics.device, &graphicsSwapchain);
-	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
-	
-	createDepthResources(&depthTexture);
-	createFramebuffers();
 
-	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &graphics.textureImage, &graphics.textureImageMemory);
-	createTextureImageView(graphics.device, graphics.textureImage);
+	createDepthResources(&depthTexture);
+	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
+
+	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &imageTexture);
+	createTextureImageView(graphics.device, imageTexture.image);
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphicsBuffer.vertexBuffer, &graphicsBuffer.vertexBufferMemory);
-	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer.indexBuffer, &graphicsBuffer.indexBufferMemory, vertexIndices);
-	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, graphicsBuffer.uniformBuffer, graphicsBuffer.uniformBufferMemory);
+
+	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphicsBuffer);
+	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
+	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
 
 	createDescriptorPool();
 	createDescriptorSets();
@@ -753,59 +675,18 @@ void recreateSwapChain() {
 	vkDeviceWaitIdle(graphics.device);
 
 	cleanupSwapChain();
+	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
-	createSwapChain(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window);
-	createImageViews(graphics.device, &graphicsSwapchain);
-	createRenderPass(graphics.device, &graphicsSwapchain);
 	createGraphicsPipeline();
 
 	createDepthResources(&depthTexture);
-	createFramebuffers();
+	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
 	createCommandBuffer();
 }
 
 
 static void onWindowResized(GLFWwindow *window, int width, int height) {
 	recreateSwapChain();
-}
-
-void updateUniformBuffer(double deltaTime, uint32_t currentImage) {
-
-	mat4 m = translate(0.0, -1.0, 0.0);
-	mat4 v = getViewMatrix();
-	mat4 p = perspective(45.0, graphicsSwapchain.swapChainExtent.width / graphicsSwapchain.swapChainExtent.height, 0.1, 100000);
-	//p.m[1][1] *= -1;
-
-	uniformBufferObject ubo[1] = {
-		{{
-		(float)m.m[0][0], (float)m.m[0][1], (float)m.m[0][2], (float)m.m[0][3],
-		(float)m.m[1][0], (float)m.m[1][1], (float)m.m[1][2], (float)m.m[1][3],
-		(float)m.m[2][0], (float)m.m[2][1], (float)m.m[2][2], (float)m.m[2][3],
-		(float)m.m[3][0], (float)m.m[3][1], (float)m.m[3][2], (float)m.m[3][3]},
-		{
-		(float)v.m[0][0], (float)v.m[0][1], (float)v.m[0][2], (float)v.m[0][3],
-		(float)v.m[1][0], (float)v.m[1][1], (float)v.m[1][2], (float)v.m[1][3],
-		(float)v.m[2][0], (float)v.m[2][1], (float)v.m[2][2], (float)v.m[2][3],
-		(float)v.m[3][0], (float)v.m[3][1], (float)v.m[3][2], (float)v.m[3][3]},
-		{
-		(float)p.m[0][0], (float)p.m[0][1], (float)p.m[0][2], (float)p.m[0][3],
-		(float)p.m[1][0], (float)p.m[1][1], (float)p.m[1][2], (float)p.m[1][3],
-		(float)p.m[2][0], (float)p.m[2][1], (float)p.m[2][2], (float)p.m[2][3],
-		(float)p.m[3][0], (float)p.m[3][1], (float)p.m[3][2], (float)p.m[3][3]}}
-
-	};
-
-	//printf("asdf: %zu, %zu\n", sizeof(ubo), sizeof(uniformBufferObject));
-	void *data;
-	vkMapMemory(graphics.device, graphicsBuffer.uniformBufferMemory[currentImage], 0, sizeof(ubo), 0, &data);
-	memcpy(data, (const void *)&ubo[0], sizeof(ubo));
-	vkUnmapMemory(graphics.device, graphicsBuffer.uniformBufferMemory[currentImage]);
-
-	//for(int i = 0; i < 48; i++) {
-	//	printf("%f, ", *((float *) ((char *) data + sizeof(float) * i)));
-	//	if((i+1)%4 == 0) printf("\n");
-	//}
-	//printf("\n");
 }
 
 void drawFrame() {
@@ -825,7 +706,11 @@ void drawFrame() {
 		printf("Failed to acquire swap chain image.\n");
 		cleanup();
 	}
-	updateUniformBuffer(deltaTime, imageIndex);
+	mat4 m = translate(0.0, -1.0, 0.0);
+	mat4 v = getViewMatrix();
+	mat4 p = perspective(45.0, graphicsSwapchain.swapChainExtent.width / graphicsSwapchain.swapChainExtent.height, 0.1, 100000);
+	//p.m[1][1] *= -1;
+	updateUniformBuffer(graphics.device, graphicsBuffer.uniformBufferMemory[imageIndex], m, v, p);
 	doMovement(deltaTime);
 
 	VkSubmitInfo submitInfo = {

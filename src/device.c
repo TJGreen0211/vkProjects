@@ -243,3 +243,11 @@ void createCommandPool(vkGraphics *g) {
 		printf("Failed to create command pool.\n");
 	}
 }
+
+void initGraphics(vkGraphics *g) {
+	g->physicalDevice = VK_NULL_HANDLE;
+	pickPhysicalDevice(g);
+	createLogicalDevice(g);
+	createDescriptorSetLayout(g);
+	createCommandPool(g);
+}

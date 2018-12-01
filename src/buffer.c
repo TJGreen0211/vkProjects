@@ -93,7 +93,7 @@ void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize 
 	vkBindBufferMemory(vkDevice, *buffer, *bufferMemory, 0);
 }
 
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory) {
+void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, vkBuffer *b) {
 	VkDeviceSize size = vertSize;
 
 	VkBuffer stagingBuffer;
@@ -110,14 +110,14 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkComm
 	//}
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, vertexBuffer[0], size);
+	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->vertexBuffer, &b->vertexBufferMemory);
+	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, b->vertexBuffer, size);
 
 	vkDestroyBuffer(device, stagingBuffer, NULL);
 	vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint16_t *verts) {
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint16_t *verts) {
 	VkDeviceSize size = vertSize;
 
 	VkBuffer stagingBuffer;
@@ -129,9 +129,42 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigne
 	memcpy(data, verts, vertSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, indexBuffer[0], size);
+	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->indexBuffer, &b->indexBufferMemory);
+	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, b->indexBuffer, size);
 
 	vkDestroyBuffer(device, stagingBuffer, NULL);
 	vkFreeMemory(device, stagingBufferMemory, NULL);
+}
+
+void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p) {
+
+	uniformBufferObject ubo[1] = {
+		{{
+		(float)m.m[0][0], (float)m.m[0][1], (float)m.m[0][2], (float)m.m[0][3],
+		(float)m.m[1][0], (float)m.m[1][1], (float)m.m[1][2], (float)m.m[1][3],
+		(float)m.m[2][0], (float)m.m[2][1], (float)m.m[2][2], (float)m.m[2][3],
+		(float)m.m[3][0], (float)m.m[3][1], (float)m.m[3][2], (float)m.m[3][3]},
+		{
+		(float)v.m[0][0], (float)v.m[0][1], (float)v.m[0][2], (float)v.m[0][3],
+		(float)v.m[1][0], (float)v.m[1][1], (float)v.m[1][2], (float)v.m[1][3],
+		(float)v.m[2][0], (float)v.m[2][1], (float)v.m[2][2], (float)v.m[2][3],
+		(float)v.m[3][0], (float)v.m[3][1], (float)v.m[3][2], (float)v.m[3][3]},
+		{
+		(float)p.m[0][0], (float)p.m[0][1], (float)p.m[0][2], (float)p.m[0][3],
+		(float)p.m[1][0], (float)p.m[1][1], (float)p.m[1][2], (float)p.m[1][3],
+		(float)p.m[2][0], (float)p.m[2][1], (float)p.m[2][2], (float)p.m[2][3],
+		(float)p.m[3][0], (float)p.m[3][1], (float)p.m[3][2], (float)p.m[3][3]}}
+
+	};
+
+	void *data;
+	vkMapMemory(device, bufferMemory, 0, sizeof(ubo), 0, &data);
+	memcpy(data, (const void *)&ubo[0], sizeof(ubo));
+	vkUnmapMemory(device, bufferMemory);
+
+	//for(int i = 0; i < 48; i++) {
+	//	printf("%f, ", *((float *) ((char *) data + sizeof(float) * i)));
+	//	if((i+1)%4 == 0) printf("\n");
+	//}
+	//printf("\n");
 }

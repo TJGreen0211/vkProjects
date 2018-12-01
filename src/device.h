@@ -29,8 +29,6 @@ typedef struct vkGraphics {
 	VkPhysicalDevice physicalDevice;
 
 	VkCommandPool commandPool;
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -49,5 +47,7 @@ void pickPhysicalDevice(vkGraphics *g);
 void createLogicalDevice(vkGraphics *g);
 void createDescriptorSetLayout(vkGraphics *g);
 void createCommandPool(vkGraphics *g);
+
+void initGraphics(vkGraphics *g);
 
 #endif

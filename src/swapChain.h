@@ -15,12 +15,10 @@ typedef struct vkSwapchain {
 	VkFormat swapChainImageFormat;
 	VkImageView *swapChainImageViews;
 	unsigned int deviceImageCount;
+	VkRenderPass renderPass;
+	VkFramebuffer *swapChainFramebuffers;
 } vkSwapchain;
 
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(const VkSurfaceFormatKHR *availableFormats, unsigned int formatCount);
-VkPresentModeKHR chooseSwapPresentMode(const VkPresentModeKHR *availablePresentModes, unsigned int presentModeCount);
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities, GLFWwindow *window);
-void createSwapChain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, vkSwapchain *s, GLFWwindow *window);
-void createImageViews(VkDevice device, vkSwapchain *s);
+void initSwapChainRenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, vkSwapchain *s, GLFWwindow *window, VkFormat format);
 
 #endif

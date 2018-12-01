@@ -6,6 +6,13 @@
 #include <windows.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
+#include <linearAlg.h>
+
+typedef struct uniformBufferObject {
+	float model[16];
+	float view[16];
+	float projection[16];
+} uniformBufferObject;
 
 typedef struct vkBuffer {
 	VkBuffer vertexBuffer;
@@ -37,7 +44,8 @@ typedef struct vertexData {
 VkCommandBuffer beginSingleTimeCommands(VkDevice vkDevice, VkCommandPool pool);
 void endSingleTimeCommands(VkDevice vkDevice, VkQueue queue, VkCommandBuffer commandBuffer, VkCommandPool pool);
 void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory);
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, VkBuffer *vertexBuffer, VkDeviceMemory *vertexBufferMemory);
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer *indexBuffer, VkDeviceMemory *indexBufferMemory, uint16_t *verts);
+void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, vkBuffer *b);
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint16_t *verts);
+void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p);
 
 #endif
