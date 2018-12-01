@@ -117,7 +117,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkComm
 	vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint16_t *verts) {
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint32_t *verts) {
 	VkDeviceSize size = vertSize;
 
 	VkBuffer stagingBuffer;

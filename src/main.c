@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <GLFW/glfw3.h>
+#include <tinyobj/tinyobj_loader_c.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,9 +58,9 @@ struct texture_object {
 //    VkDescriptorSet descriptor_set;
 //} SwapchainImageResources;
 
-typedef struct pipeline {
-
-} pipeline;
+//typedef struct pipeline {
+//
+//} pipeline;
 
 
 vkGraphics graphics;
@@ -83,7 +84,7 @@ vertexData vertex[8] = {
 
 };
 
-uint16_t vertexIndices[12] = {
+uint32_t vertexIndices[12] = {
 	0, 1, 2, 2, 3, 0,
 	4, 5, 6, 6, 7, 4
 };
@@ -505,7 +506,7 @@ void createCommandBuffer() {
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
 			//vkCmdDraw(commandBuffers[i], (uint32_t)(sizeof(vertices)/sizeof(vertices[0])), 1, 0, 0);
 			vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
@@ -640,6 +641,21 @@ void createDepthResources(vkTexture *t) {
 
 	}
 
+void loadModel() {
+	//tinyobj_attrib_t attrib;
+	//tinyobj_shape_t *shapes;
+	//tinyobj_material_t *material;
+	//size_t numMaterials;
+	//size_t numShapes;
+	//size_t dataLen = 0;
+
+	//const char *data = get_file_data(&dataLen, "");
+	//if(data == NULL) {
+	//	printf("Failed to load object file.");
+	//	exit("-1")
+	//}
+}
+
 void initVulkan() {
 	createInstance(enableValidationLayers, &graphics.instance);
 	setupDebugCallback();
@@ -657,7 +673,7 @@ void initVulkan() {
 	createTextureImageView(graphics.device, imageTexture.image);
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
-
+	loadModel();
 	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphicsBuffer);
 	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
 	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
