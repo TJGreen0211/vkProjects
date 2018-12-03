@@ -33,7 +33,7 @@ mat4 getViewMatrix()
 
 	//printf("DeltaTime: %f\n", arcYaw);
 
-	return tr;//multiplymat4(rxry, tr);
+	return multiplymat4(rxry, tr);
 }
 
 vec3 getCamera() {

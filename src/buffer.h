@@ -47,5 +47,6 @@ void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize 
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, vkBuffer *b);
 void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint32_t *verts);
 void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p);
+void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, vkBuffer *b);
 
 #endif

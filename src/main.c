@@ -532,17 +532,6 @@ void createSemaphores() {
 	}
 }
 
-void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, vkBuffer *b) {
-
-	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
-	b->uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
-	b->uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
-
-	for(unsigned int i = 0; i < imageCount; i++) {
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &b->uniformBuffer[i], &graphicsBuffer.uniformBufferMemory[i]);
-	}
-}
-
 void createDescriptorSets() {
 	VkDescriptorSetLayout *layouts;
 	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphicsSwapchain.deviceImageCount);
