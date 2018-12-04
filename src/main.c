@@ -17,6 +17,7 @@
 #include "swapChain.h"
 #include "textures.h"
 #include "shader.h"
+#include "sphere.h"
 
 #define _CRT_SECURE_NO_DEPRECATE 1
 //#define _CRT_SECURE_NO_WARNINGS 1
@@ -71,18 +72,9 @@ vkTexture imageTexture;
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-vertexData vertex[8] = {
-	{{-0.5f, -0.5f, 0.0f}, 	{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, -0.5f, 0.0f}, 	{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f}, 	{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-    {{-0.5f, 0.5f, 0.0f}, 	{1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+vertexData *vertex;
 
-	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f, -0.5f}, 	{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    {{0.5f, 0.5f, -0.5f}, 	{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, 0.5f, -0.5f}, 	{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-
-};
+sphere newSphere;
 
 uint32_t vertexIndices[12] = {
 	0, 1, 2, 2, 3, 0,
@@ -489,7 +481,7 @@ void createCommandBuffer() {
 			.renderArea.extent = graphicsSwapchain.swapChainExtent,
 		};
 
-		VkClearValue clearColor = {.color = {0.0f, 0.0f, 0.0f, 1.0f},};
+		VkClearValue clearColor = {.color = {0.0f, 1.0f, 0.0f, 1.0f},};
 		VkClearValue clearDepth = {.depthStencil = {1.0f, 0},};
 
 		VkClearValue clearValues[2];// = malloc(2*sizeof(VkClearValue));
@@ -506,10 +498,10 @@ void createCommandBuffer() {
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			//vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
-			//vkCmdDraw(commandBuffers[i], (uint32_t)(sizeof(vertices)/sizeof(vertices[0])), 1, 0, 0);
-			vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
+			vkCmdDraw(commandBuffers[i], (uint32_t)(newSphere.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			//vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
 
 		vkCmdEndRenderPass(commandBuffers[i]);
@@ -662,8 +654,72 @@ void initVulkan() {
 	createTextureImageView(graphics.device, imageTexture.image);
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
+
+	newSphere = tetrahedron(4, &newSphere);
+	//int size;
+	//int nsize;
+	//vec3 *points;
+	//vec3 *normals;
+	//int vertexNumber;
+
+	//{{-0.5f, -0.5f, 0.0f}, 	{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    //{{0.5f, -0.5f, 0.0f}, 	{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    //{{0.5f, 0.5f, 0.0f}, 	{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	//{{0.5f, 0.5f, 0.0f}, 	{0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    //{{-0.5f, 0.5f, 0.0f}, 	{1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+	//{{-0.5f, -0.5f, 0.0f}, 	{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+
+	float positions[6][3] = {
+		{-0.5f, -0.5f, 0.0f},
+		{0.5f, -0.5f, 0.0f},
+		{0.5f, 0.5f, 0.0f},
+		{0.5f, 0.5f, 0.0f},
+		{-0.5f, 0.5f, 0.0f},
+		{-0.5f, -0.5f, 0.0f},
+	};
+	float normals[6][3] = {
+		{0.0f, 1.0f, 0.0f},
+		{1.0f, 0.0f, 0.0f},
+		{0.0f, 0.0f, 1.0f},
+		{0.0f, 0.0f, 1.0f},
+		{1.0f, 1.0f, 1.0f},
+		{1.0f, 0.0f, 0.0f},
+	};
+	float texCoords[6][3] = {
+		{1.0f, 0.0f},
+		{0.0f, 0.0f},
+		{0.0f, 1.0f},
+		{0.0f, 1.0f},
+		{1.0f, 1.0f},
+		{1.0f, 0.0f},
+	};
+
+	vertex = malloc(newSphere.vertexNumber*sizeof(vertexData));
+	for(int i = 0; i < newSphere.vertexNumber; i++){
+		vertex[i].pos[0] = (float)newSphere.points[i].x;
+		vertex[i].pos[1] = (float)newSphere.points[i].y;
+		vertex[i].pos[2] = (float)newSphere.points[i].z;
+
+		vertex[i].color[0] = (float)newSphere.normals[i].x;
+		vertex[i].color[1] = (float)newSphere.normals[i].y;
+		vertex[i].color[2] = (float)newSphere.normals[i].z;
+
+		vertex[i].texCoord[0] = (float)newSphere.normals[i].x;
+		vertex[i].texCoord[1] = (float)newSphere.normals[i].y;
+
+
+		//memcpy(&vertex[i].pos, &positions[i], sizeof(positions[0]));
+		//memcpy(&vertex[i].color, &normals[i], sizeof(normals[0]));
+		//memcpy(&vertex[i].texCoord, &texCoords[i], sizeof(texCoords[0]));
+
+		//printf("position[%d]: %f, %f, %f\n", i, vertex[i].pos[0], vertex[i].pos[1], vertex[i].pos[2]);
+		//printf("color[%d]: %f, %f, %f\n", i, vertex[i].color[0], vertex[i].color[1], vertex[i].color[2]);
+		//printf("tex[%d]: %f, %f\n", i, vertex[i].texCoord[0], vertex[i].texCoord[1]);
+	}
+
+
 	loadModel();
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, sizeof(vertex), &graphicsBuffer);
+	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, newSphere.vertexNumber*sizeof(vertexData), &graphicsBuffer);
 	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
 	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
 
@@ -712,6 +768,9 @@ void drawFrame() {
 		cleanup();
 	}
 	mat4 m = translate(0.0, -1.0, 0.0);
+	vec3 arcBallPos = getCamera();
+	m = multiplymat4(multiplymat4(translate(-arcBallPos.x, -arcBallPos.y, -arcBallPos.z), rotateX(0.0)), scale(0.5));
+
 	mat4 v = getViewMatrix();
 	mat4 p = perspective(45.0, graphicsSwapchain.swapChainExtent.width / graphicsSwapchain.swapChainExtent.height, 0.1, 100000);
 	//p.m[1][1] *= -1;
