@@ -15,7 +15,8 @@ SRCS = Main.c \
 	swapChain.c \
 	textures.c \
 	shader.c \
-	sphere.c
+	sphere.c \
+	quadCube.c
 
 
 

@@ -18,6 +18,7 @@
 #include "textures.h"
 #include "shader.h"
 #include "sphere.h"
+#include "quadCube.h"
 
 #define _CRT_SECURE_NO_DEPRECATE 1
 //#define _CRT_SECURE_NO_WARNINGS 1
@@ -75,6 +76,7 @@ const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 vertexData *vertex;
 
 sphere newSphere;
+quadCube cube;
 
 uint32_t vertexIndices[12] = {
 	0, 1, 2, 2, 3, 0,
@@ -500,7 +502,7 @@ void createCommandBuffer() {
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 			//vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
-			vkCmdDraw(commandBuffers[i], (uint32_t)(newSphere.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			vkCmdDraw(commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 			//vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
 
@@ -694,18 +696,21 @@ void initVulkan() {
 		{1.0f, 0.0f},
 	};
 
-	vertex = malloc(newSphere.vertexNumber*sizeof(vertexData));
-	for(int i = 0; i < newSphere.vertexNumber; i++){
-		vertex[i].pos[0] = (float)newSphere.points[i].x;
-		vertex[i].pos[1] = (float)newSphere.points[i].y;
-		vertex[i].pos[2] = (float)newSphere.points[i].z;
+	createCube(5, &cube);
 
-		vertex[i].color[0] = (float)newSphere.normals[i].x;
-		vertex[i].color[1] = (float)newSphere.normals[i].y;
-		vertex[i].color[2] = (float)newSphere.normals[i].z;
 
-		vertex[i].texCoord[0] = (float)newSphere.normals[i].x;
-		vertex[i].texCoord[1] = (float)newSphere.normals[i].y;
+	vertex = malloc(cube.vertexNumber*sizeof(vertexData));
+	for(int i = 0; i < cube.vertexNumber; i++){
+		vertex[i].pos[0] = (float)cube.points[i].x;
+		vertex[i].pos[1] = (float)cube.points[i].y;
+		vertex[i].pos[2] = (float)cube.points[i].z;
+
+		vertex[i].color[0] = (float)cube.normals[i].x;
+		vertex[i].color[1] = (float)cube.normals[i].y;
+		vertex[i].color[2] = (float)cube.normals[i].z;
+
+		vertex[i].texCoord[0] = (float)cube.normals[i].x;
+		vertex[i].texCoord[1] = (float)cube.normals[i].y;
 
 
 		//memcpy(&vertex[i].pos, &positions[i], sizeof(positions[0]));
@@ -719,7 +724,7 @@ void initVulkan() {
 
 
 	loadModel();
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, newSphere.vertexNumber*sizeof(vertexData), &graphicsBuffer);
+	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &graphicsBuffer);
 	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
 	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
 
