@@ -1,112 +1,121 @@
 #include "quadCube.h"
 
-int subdivideFace(quadCube *qc, vec3 start, int divisions, double fdivisions, int index) {
-	double offset = 2.0/(fdivisions);
+void subdivideFace(quadCube *qc, double reverse, int divisions, int order[3]) {
+    vec3 start = {1.0, 1.0, reverse};
+	double offset = 2.0/((double)divisions);
+
 	for(int i = 0; i < divisions; i++) {
 		start.x = 1.0;
 		for(int j = 0; j < divisions; j++) {
-			vec3 face0 = {start.x,   	  start.y,   start.z};
-			vec3 face1 = {start.x-offset, start.y-offset, start.z};
-			vec3 face2 = {start.x,        start.y-offset, start.z};
-			vec3 face3 = {start.x-offset, start.y,   start.z};
+            double faces[4][3];
+            faces[0][order[0]] = start.x;   	   faces[0][order[1]] = start.y;          faces[0][order[2]] = start.z;
+			faces[1][order[0]] = start.x-offset;   faces[1][order[1]] = start.y;          faces[1][order[2]] = start.z;
+			faces[2][order[0]] = start.x-offset;   faces[2][order[1]] = start.y-offset;   faces[2][order[2]] = start.z;
+            faces[3][order[0]] = start.x;          faces[3][order[1]] = start.y-offset;   faces[3][order[2]] = start.z;
 
-			if(start.z == -1.0) {
-				qc->points[index++] = face2;
-				qc->points[index++] = face1;
-				qc->points[index++] = face0;
+			if(start.z == 1.0) {
+                memcpy(&qc->points[qc->vertexNumber++], &faces[0], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[1], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[2], sizeof(faces[0]));
 
-				qc->points[index++] = face1;
-				qc->points[index++] = face3;
-				qc->points[index++] = face0;
+                memcpy(&qc->points[qc->vertexNumber++], &faces[0], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[2], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[3], sizeof(faces[0]));
+
+
 			}
 			else {
-				qc->points[index++] = face0;
-				qc->points[index++] = face1;
-				qc->points[index++] = face2;
+                memcpy(&qc->points[qc->vertexNumber++], &faces[0], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[3], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[2], sizeof(faces[0]));
 
-				qc->points[index++] = face0;
-				qc->points[index++] = face3;
-				qc->points[index++] = face1;
+                memcpy(&qc->points[qc->vertexNumber++], &faces[0], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[2], sizeof(faces[0]));
+                memcpy(&qc->points[qc->vertexNumber++], &faces[1], sizeof(faces[0]));
 			}
 
 			start.x = start.x - offset;
 		}
 		start.y -= offset;
 	}
-	return index;
 }
 
-int subdivideZ(quadCube *qc, vec3 start, int divisions, double fdivisions, int index) {
-	double offset = 2.0/(fdivisions);
+/*
+int subdivideY(quadCube *qc, vec3 start, int divisions, int index) {
+	double offset = 2.0/((double)divisions);
 	for(int i = 0; i < divisions; i++) {
 		start.z = 1.0;
 		for(int j = 0; j < divisions; j++) {
-			vec3 face0 = {start.x, start.y, start.z};
-			vec3 face1 = {start.x, start.y-offset, start.z-offset};
-			vec3 face2 = {start.x, start.y-offset, start.z};
-			vec3 face3 = {start.x, start.y, start.z-offset};
+            vec3 faces[4];
+			faces[0].x = start.x; 	        faces[0].y = start.y; faces[0].z = start.z;
+			faces[1].x = start.x;           faces[1].y = start.y; faces[1].z = start.z-offset;
+			faces[2].x = start.x-offset;    faces[2].y = start.y; faces[2].z = start.z-offset;
+			faces[3].x = start.x-offset;    faces[3].y = start.y; faces[3].z = start.z;
 
-			if(start.x == -1.0) {
-				qc->points[index++] = face0;
-				qc->points[index++] = face1;
-				qc->points[index++] = face2;
+			if(start.y == 1.0) {
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[1];
+				qc->points[index++] = faces[2];
 
-				qc->points[index++] = face0;
-				qc->points[index++] = face3;
-				qc->points[index++] = face1;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[2];
+				qc->points[index++] = faces[3];
 			}
 			else {
-				qc->points[index++] = face2;
-				qc->points[index++] = face1;
-				qc->points[index++] = face0;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[3];
+				qc->points[index++] = faces[2];
 
-				qc->points[index++] = face1;
-				qc->points[index++] = face3;
-				qc->points[index++] = face0;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[2];
+				qc->points[index++] = faces[1];
 			}
 
 			start.z = start.z - offset;
 		}
-		start.y -= offset;
+		start.x -= offset;
 	}
 	return index;
 }
 
-int subdivideY(quadCube *qc, vec3 start, int divisions, double fdivisions, int index) {
-	double offset = 2.0/(fdivisions);
+int subdivideZ(quadCube *qc, vec3 start, int divisions, int index) {
+	double offset = 2.0/((double)divisions);
+    printf("Offset: %f", offset);
 	for(int i = 0; i < divisions; i++) {
-		start.x = 1.0;
+		start.y = 1.0;
 		for(int j = 0; j < divisions; j++) {
-			vec3 face0 = {start.x, 		  start.y, start.z};
-			vec3 face1 = {start.x-offset, start.y, start.z-offset};
-			vec3 face2 = {start.x,        start.y, start.z-offset};
-			vec3 face3 = {start.x-offset, start.y, start.z};
+            vec3 faces[4];
+			faces[0].x = start.x; faces[0].y = start.y;         faces[0].z = start.z;
+			faces[1].x = start.x; faces[1].y = start.y-offset;  faces[1].z = start.z;
+			faces[2].x = start.x; faces[2].y = start.y-offset;  faces[2].z = start.z-offset;
+			faces[3].x = start.x; faces[3].y = start.y;         faces[3].z = start.z-offset;
 
-			if(start.y == -1.0) {
-				qc->points[index++] = face0;
-				qc->points[index++] = face1;
-				qc->points[index++] = face2;
+			if(start.x == 1.0) {
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[1];
+				qc->points[index++] = faces[2];
 
-				qc->points[index++] = face0;
-				qc->points[index++] = face3;
-				qc->points[index++] = face1;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[2];
+				qc->points[index++] = faces[3];
 			}
 			else {
-				qc->points[index++] = face2;
-				qc->points[index++] = face1;
-				qc->points[index++] = face0;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[3];
+				qc->points[index++] = faces[2];
 
-				qc->points[index++] = face1;
-				qc->points[index++] = face3;
-				qc->points[index++] = face0;
+				qc->points[index++] = faces[0];
+				qc->points[index++] = faces[2];
+				qc->points[index++] = faces[1];
 			}
 
-			start.x = start.x - offset;
+			start.y = start.y - offset;
 		}
 		start.z -= offset;
 	}
 	return index;
 }
+*/
 
 void createCube(int divisions, quadCube *newQuadCube) {
 	/*
@@ -124,27 +133,28 @@ void createCube(int divisions, quadCube *newQuadCube) {
 	newQuadCube->points = malloc(divisions*divisions*sizeof(vec3)*6*6);
 	newQuadCube->normals = malloc(divisions*divisions*sizeof(vec3)*6*6);
 
-	int index = 0;
-	vec3 start = {1.0, 1.0, -1.0};
-	index = subdivideFace(newQuadCube, start, divisions, (double)divisions, index);
-	start.x = 1.0; start.y = 1.0; start.z = 1.0;
-	index = subdivideFace(newQuadCube, start, divisions, (double)divisions, index);
-	start.x = 1.0; start.y = 1.0; start.z = 1.0;
-	index = subdivideZ(newQuadCube, start, divisions, (double)divisions, index);
-	start.x = -1.0; start.y = 1.0; start.z = 1.0;
-	index = subdivideZ(newQuadCube, start, divisions, (double)divisions, index);
-	start.x = 1.0; start.y = -1.0; start.z = 1.0;
-	index = subdivideY(newQuadCube, start, divisions, (double)divisions, index);
-	start.x = 1.0; start.y = 1.0; start.z = 1.0;
-	index = subdivideY(newQuadCube, start, divisions, (double)divisions, index);
+    //int order[3] = {0, 1, 2};
+    //int order[3] = {2, 0, 1};
+    //int order[3] = {1, 2, 0};
 
-	newQuadCube->size = index*sizeof(vec3);
-	newQuadCube->nsize = index*sizeof(vec3);
-	newQuadCube->vertexNumber = index;
+	newQuadCube->vertexNumber = 0;
+
+    int order[3] = {0, 1, 2};
+	subdivideFace(newQuadCube, 1.0, divisions, order);
+	subdivideFace(newQuadCube, -1.0, divisions, order);
+    order[0] =2; order[1] = 0; order[2] = 1;
+    subdivideFace(newQuadCube, 1.0, divisions, order);
+	subdivideFace(newQuadCube, -1.0, divisions, order);
+    order[0] = 1; order[1] = 2; order[2] = 0;
+    subdivideFace(newQuadCube, 1.0, divisions, order);
+	subdivideFace(newQuadCube, -1.0, divisions, order);
+
+	newQuadCube->size = newQuadCube->vertexNumber*sizeof(vec3);
+	newQuadCube->nsize = newQuadCube->vertexNumber*sizeof(vec3);
 
 	for(int i = 0; i < newQuadCube->vertexNumber; i++) {
 		//printf("x:%f, y:%f, z:%f\n", newQuadCube.points[i].x, newQuadCube.points[i].y, newQuadCube.points[i].z);
-		//newQuadCube->points[i] = normalizevec3(newQuadCube->points[i]);
+		newQuadCube->points[i] = normalizevec3(newQuadCube->points[i]);
 	}
 
 	for(int i = 0; i < newQuadCube->vertexNumber; i+=3)
@@ -165,4 +175,11 @@ void createCube(int divisions, quadCube *newQuadCube) {
 		newQuadCube->normals[i+1] = normal;
 		newQuadCube->normals[i+2] = normal;
 	}
+}
+
+void destroyCube(quadCube *newQuadCube) {
+    free(newQuadCube->points);
+    newQuadCube->points = NULL;
+    free(newQuadCube->normals);
+    newQuadCube->points = NULL;
 }

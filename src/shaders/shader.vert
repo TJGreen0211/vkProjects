@@ -20,6 +20,12 @@ out gl_PerVertex {
 
 void main() {
 	gl_Position = vec4(inPosition, 1.0) * ubo.model * ubo.view * ubo.proj;
+
+	//vec4 ray = normalize(ubo.model*vec4(inPosition, 1.0) - vec4(cameraPos, 1.0));
+	//mat3 normalMatrix = transpose(inverse(mat3(ubo.model)));
+	//vec4 lightPos = vec4(10.0, 5.0, -4.0, 1.0);
+
+
 	fColor = inColor;//vec3(ubo.model[0][0], 0.0, 0.0);
 	fTexCoord = inTexCoord;
 }

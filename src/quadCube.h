@@ -5,16 +5,17 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include "LinearAlg.h"
+#include "linearAlg.h"
 
 typedef struct quadCube {
 	int size;
 	int nsize;
-	vec3 *points;
-	vec3 *normals;
 	int vertexNumber;
+    vec3 *points;
+	vec3 *normals;
 } quadCube;
 
 void createCube(int divisions, quadCube *newQuadCube);
+void destroyCube(quadCube *newQuadCube);
 
 #endif
