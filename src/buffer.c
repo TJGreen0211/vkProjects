@@ -138,6 +138,7 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigne
 
 void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p) {
 
+	vec4 camPosition = getCameraPosition(m);
 	uniformBufferObject ubo[1] = {
 		{{
 		(float)m.m[0][0], (float)m.m[0][1], (float)m.m[0][2], (float)m.m[0][3],
@@ -153,8 +154,11 @@ void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, m
 		(float)p.m[0][0], (float)p.m[0][1], (float)p.m[0][2], (float)p.m[0][3],
 		(float)p.m[1][0], (float)p.m[1][1], (float)p.m[1][2], (float)p.m[1][3],
 		(float)p.m[2][0], (float)p.m[2][1], (float)p.m[2][2], (float)p.m[2][3],
-		(float)p.m[3][0], (float)p.m[3][1], (float)p.m[3][2], (float)p.m[3][3]}}
-
+		(float)p.m[3][0], (float)p.m[3][1], (float)p.m[3][2], (float)p.m[3][3]},
+		{
+		(float)camPosition.x, (float)camPosition.y, (float)camPosition.z,
+		}
+		},
 	};
 
 	void *data;

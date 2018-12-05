@@ -7,11 +7,14 @@
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <linearAlg.h>
+#include "arcballCamera.h"
+
 
 typedef struct uniformBufferObject {
 	float model[16];
 	float view[16];
 	float projection[16];
+	float camera[3];
 } uniformBufferObject;
 
 typedef struct vkBuffer {
