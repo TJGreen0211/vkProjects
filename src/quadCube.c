@@ -40,82 +40,25 @@ void subdivideFace(quadCube *qc, double reverse, int divisions, int order[3]) {
 	}
 }
 
-/*
-int subdivideY(quadCube *qc, vec3 start, int divisions, int index) {
-	double offset = 2.0/((double)divisions);
-	for(int i = 0; i < divisions; i++) {
-		start.z = 1.0;
-		for(int j = 0; j < divisions; j++) {
-            vec3 faces[4];
-			faces[0].x = start.x; 	        faces[0].y = start.y; faces[0].z = start.z;
-			faces[1].x = start.x;           faces[1].y = start.y; faces[1].z = start.z-offset;
-			faces[2].x = start.x-offset;    faces[2].y = start.y; faces[2].z = start.z-offset;
-			faces[3].x = start.x-offset;    faces[3].y = start.y; faces[3].z = start.z;
-
-			if(start.y == 1.0) {
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[1];
-				qc->points[index++] = faces[2];
-
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[2];
-				qc->points[index++] = faces[3];
+void generateSmoothNormals(quadCube *qc) {
+	vec3 *vna = malloc(qc->vertexNumber*sizeof(vec3));
+	vec3 vn;
+	for(int i = 0; i < qc->vertexNumber; i++) {
+		vec3 tempvn = {0.0, 0.0, 0.0};
+		vn = qc->points[i];
+		for(int j = 0; j < qc->vertexNumber; j++) {
+			if(vn.x == qc->points[j].x && vn.y == qc->points[j].y && vn.z == qc->points[j].z) {
+				tempvn = plusequalvec3(tempvn, qc->normals[j]);
 			}
-			else {
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[3];
-				qc->points[index++] = faces[2];
-
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[2];
-				qc->points[index++] = faces[1];
-			}
-
-			start.z = start.z - offset;
 		}
-		start.x -= offset;
+		vna[i] = normalizevec3(tempvn);
 	}
-	return index;
-}
 
-int subdivideZ(quadCube *qc, vec3 start, int divisions, int index) {
-	double offset = 2.0/((double)divisions);
-    printf("Offset: %f", offset);
-	for(int i = 0; i < divisions; i++) {
-		start.y = 1.0;
-		for(int j = 0; j < divisions; j++) {
-            vec3 faces[4];
-			faces[0].x = start.x; faces[0].y = start.y;         faces[0].z = start.z;
-			faces[1].x = start.x; faces[1].y = start.y-offset;  faces[1].z = start.z;
-			faces[2].x = start.x; faces[2].y = start.y-offset;  faces[2].z = start.z-offset;
-			faces[3].x = start.x; faces[3].y = start.y;         faces[3].z = start.z-offset;
-
-			if(start.x == 1.0) {
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[1];
-				qc->points[index++] = faces[2];
-
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[2];
-				qc->points[index++] = faces[3];
-			}
-			else {
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[3];
-				qc->points[index++] = faces[2];
-
-				qc->points[index++] = faces[0];
-				qc->points[index++] = faces[2];
-				qc->points[index++] = faces[1];
-			}
-
-			start.y = start.y - offset;
-		}
-		start.z -= offset;
+	for(int i = 0; i < qc->vertexNumber; i++) {
+		qc->normals[i] = vna[i];
 	}
-	return index;
+	free(vna);
 }
-*/
 
 void createCube(int divisions, quadCube *newQuadCube) {
 	/*
@@ -175,6 +118,8 @@ void createCube(int divisions, quadCube *newQuadCube) {
 		newQuadCube->normals[i+1] = normal;
 		newQuadCube->normals[i+2] = normal;
 	}
+
+	generateSmoothNormals(newQuadCube);
 }
 
 void destroyCube(quadCube *newQuadCube) {
