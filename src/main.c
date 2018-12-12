@@ -637,27 +637,8 @@ void loadModel() {
 	//	printf("Failed to load object file.");
 	//	exit("-1")
 	//}
-}
-
-void initVulkan() {
-	createInstance(enableValidationLayers, &graphics.instance);
-	setupDebugCallback();
-	createSurface(graphics.instance, &graphics.surface, window);
-
-	initGraphics(&graphics);
-	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
-
-	createGraphicsPipeline();
-
-	createDepthResources(&depthTexture);
-	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
-
-	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &imageTexture);
-	createTextureImageView(graphics.device, imageTexture.image);
-	createTextureSampler(graphics.device, &graphics.textureSampler);
-
-
-	newSphere = tetrahedron(4, &newSphere);
+	
+		newSphere = tetrahedron(4, &newSphere);
 	//int size;
 	//int nsize;
 	//vec3 *points;
@@ -721,7 +702,24 @@ void initVulkan() {
 		//printf("color[%d]: %f, %f, %f\n", i, vertex[i].color[0], vertex[i].color[1], vertex[i].color[2]);
 		//printf("tex[%d]: %f, %f\n", i, vertex[i].texCoord[0], vertex[i].texCoord[1]);
 	}
+}
 
+void initVulkan() {
+	createInstance(enableValidationLayers, &graphics.instance);
+	setupDebugCallback();
+	createSurface(graphics.instance, &graphics.surface, window);
+
+	initGraphics(&graphics);
+	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
+
+	createGraphicsPipeline();
+
+	createDepthResources(&depthTexture);
+	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
+
+	createTextureImage(graphics.physicalDevice, graphics.device, graphics.commandPool, graphics.graphicsQueue, &imageTexture);
+	createTextureImageView(graphics.device, imageTexture.image);
+	createTextureSampler(graphics.device, &graphics.textureSampler);
 
 	loadModel();
 	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &graphicsBuffer);
