@@ -1,19 +1,24 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-uniform float time;
-uniform float E;
-uniform vec3 camPosition;
-uniform vec3 translation;
-uniform vec3 C_R;
-uniform vec3 lightPosition;
+layout(location = 0) out vec4 FragColor;
+
+layout(binding = 0) uniform atmosphereObject {
+	float time;
+	float E;
+	vec3 camPosition;
+	vec3 translation;
+	vec3 C_R;
+	vec3 lightPosition;
+} a;
+
 
 layout (location = 0) in vec4 fPosition;
-layout (location = 1) in mat4 m;
+/*layout (location = 1) in mat4 m;
 layout (location = 2) in mat4 v;
 layout (location = 3) in vec3 fNormal;
 
-out vec4 FragColor;
+
 
 const float PI = 3.14159265359;
 const float degToRad = PI / 180.0;
@@ -131,21 +136,23 @@ vec3 inScatter(vec3 o, vec3 dir, vec2 e, vec3 l) {
 	return sum * ( K_R * C_R * rayleighPhase( cc ) + K_M * miePhase( G_M, c, cc ) ) * E;
 }
 
+*/
 void main (void)
 {
-	mat3 rot = rot3xy( vec2( 0.0, time/10.0) );
-	vec3 dir = rayDirection(camPosition);
-	vec3 eye = camPosition;
+	//mat3 rot = rot3xy( vec2( 0.0, time/10.0) );
+	//vec3 dir = rayDirection(camPosition);
+	//vec3 eye = camPosition;
 
-	vec3 l = normalize(lightPosition);
-	vec2 e = rayIntersection(eye, dir, fOuterRadius);
+	//vec3 l = normalize(lightPosition);
+	//vec2 e = rayIntersection(eye, dir, fOuterRadius);
 	//if ( e.x > e.y ) {
 	//	discard;
 	//}
-	vec2 f = rayIntersection(eye, dir, fInnerRadius);
-	e.y = min(e.y, f.x);
+	//vec2 f = rayIntersection(eye, dir, fInnerRadius);
+	//e.y = min(e.y, f.x);
 
-	vec3 I = inScatter(eye, dir, e, l);
+	//vec3 I = inScatter(eye, dir, e, l);
 
-	FragColor = vec4(I, 1.0);
+	FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+	//FragColor = vec4(I, 1.0);
 }
