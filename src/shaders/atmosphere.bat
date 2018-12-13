@@ -1,0 +1,2 @@
+glslangValidator.exe -V C:\Users\TJ\Documents\programming\vkProjects\src\shaders\test\atmosphere.vert
+glslangValidator.exe -V C:\Users\TJ\Documents\programming\vkProjects\src\shaders\test\atmosphere.frag
