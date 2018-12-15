@@ -49,6 +49,11 @@ struct texture_object {
     int32_t tex_width, tex_height;
 };
 
+typedef struct pipelineResources {
+	VkPipelineLayout pipelineLayout;
+	VkPipeline graphicsPipeline;
+} pipelineResources;
+
 //typedef struct SwapchainImageResources {
 //    VkImage image;
 //    VkCommandBuffer cmd;
@@ -73,6 +78,7 @@ vkTexture imageTexture;
 
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
+pipelineResources pipe;
 vertexData *vertex;
 
 sphere newSphere;
@@ -83,8 +89,7 @@ uint32_t vertexIndices[12] = {
 	4, 5, 6, 6, 7, 4
 };
 
-VkPipelineLayout pipelineLayout;
-VkPipeline graphicsPipeline;
+
 VkCommandBuffer *commandBuffers;
 GLFWwindow *window;
 
@@ -96,10 +101,10 @@ VkSemaphore renderFinishedSemaphore;
 
 VkDebugReportCallbackEXT callback;
 
-static VkVertexInputBindingDescription getBindingDescription() {
+static VkVertexInputBindingDescription getBindingDescription(unsigned int size) {
 	VkVertexInputBindingDescription bindingDescription ={
 		.binding = 0,
-		.stride = sizeof(vertexData),
+		.stride = size,
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 	};
 	return bindingDescription;
@@ -139,8 +144,8 @@ void cleanupSwapChain() {
 	}
 	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphicsSwapchain.deviceImageCount, commandBuffers);
 
-	vkDestroyPipeline(graphics.device, graphicsPipeline, NULL);
-	vkDestroyPipelineLayout(graphics.device, pipelineLayout, NULL);
+	vkDestroyPipeline(graphics.device, pipe.graphicsPipeline, NULL);
+	vkDestroyPipelineLayout(graphics.device, pipe.pipelineLayout, NULL);
 	vkDestroyRenderPass(graphics.device, graphicsSwapchain.renderPass, NULL);
 
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
@@ -243,7 +248,7 @@ VkFormat findDepthFormat() {
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-void createGraphicsPipeline() {
+void createGraphicsPipeline(VkDevice device, VkDescriptorSetLayout *descriptorSetLayout, vkSwapchain *s, pipelineResources *p) {
 
 	size_t vertSize, fragSize;
 	char *vertShaderCode = readShader("shaders/vert.spv", &vertSize);
@@ -269,7 +274,7 @@ void createGraphicsPipeline() {
 	VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
 
-	VkVertexInputBindingDescription bindingDescription = getBindingDescription();
+	VkVertexInputBindingDescription bindingDescription = getBindingDescription(sizeof(vertexData));
 	VkVertexInputAttributeDescription *attributeDescriptions;
 	attributeDescriptions = getAttributeDescriptions();
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
@@ -289,15 +294,15 @@ void createGraphicsPipeline() {
 	VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
-		.width = (float)graphicsSwapchain.swapChainExtent.width,
-		.height = (float)graphicsSwapchain.swapChainExtent.height,
+		.width = (float)s->swapChainExtent.width,
+		.height = (float)s->swapChainExtent.height,
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
 
 	VkRect2D scissor = {
 		.offset = {0, 0},
-		.extent = graphicsSwapchain.swapChainExtent,
+		.extent = s->swapChainExtent,
 	};
 
 	VkPipelineViewportStateCreateInfo viewportState = {
@@ -387,13 +392,13 @@ void createGraphicsPipeline() {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount = 1,
-		.pSetLayouts = &graphics.descriptorSetLayout,
+		.pSetLayouts = descriptorSetLayout,
 		//.pSetLayouts = NULL,
 		//.pushConstantRangeCount = 0,
 		//.pPushConstantRanges = 0,
 	};
 
-	if(vkCreatePipelineLayout(graphics.device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
+	if(vkCreatePipelineLayout(device, &pipelineLayoutInfo, NULL, &p->pipelineLayout) != VK_SUCCESS) {
 		printf("Failed to create pipeline layout.\n");
 		cleanup();
 	};
@@ -410,20 +415,20 @@ void createGraphicsPipeline() {
 		.pDepthStencilState = &depthStencil,
 		.pColorBlendState = &colorBlending,
 		.pDynamicState = NULL,
-		.layout = pipelineLayout,
-		.renderPass = graphicsSwapchain.renderPass,
+		.layout = p->pipelineLayout,
+		.renderPass = s->renderPass,
 		.subpass = 0,
 		.basePipelineHandle = VK_NULL_HANDLE,
 		.basePipelineIndex = -1,
 	};
 
-	if(vkCreateGraphicsPipelines(graphics.device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
+	if(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &p->graphicsPipeline) != VK_SUCCESS) {
 		printf("Failed to create graphics pipeline.\n");
 		cleanup();
 	}
 
-	vkDestroyShaderModule(graphics.device, vertShaderModule, NULL);
-	vkDestroyShaderModule(graphics.device, fragShaderModule, NULL);
+	vkDestroyShaderModule(device, vertShaderModule, NULL);
+	vkDestroyShaderModule(device, fragShaderModule, NULL);
 
 	//printf("%zd, %zd\n", vertSize, fragSize);
 }
@@ -496,12 +501,12 @@ void createCommandBuffer() {
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.graphicsPipeline);
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 			//vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
 			vkCmdDraw(commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 			//vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
@@ -637,7 +642,7 @@ void loadModel() {
 	//	printf("Failed to load object file.");
 	//	exit("-1")
 	//}
-	
+
 		newSphere = tetrahedron(4, &newSphere);
 	//int size;
 	//int nsize;
@@ -712,7 +717,7 @@ void initVulkan() {
 	initGraphics(&graphics);
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
-	createGraphicsPipeline();
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
@@ -741,7 +746,7 @@ void recreateSwapChain() {
 	cleanupSwapChain();
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
-	createGraphicsPipeline();
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
