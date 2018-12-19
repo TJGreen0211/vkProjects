@@ -79,6 +79,7 @@ vkTexture imageTexture;
 const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 pipelineResources pipe;
+pipelineResources pipeTest;
 vertexData *vertex;
 
 sphere newSphere;
@@ -458,7 +459,7 @@ void createFramebuffers(VkDevice device, vkSwapchain *s, VkImageView depthImageV
 	}
 }
 
-void createCommandBuffer() {
+void createCommandBuffer(pipelineResources p) {
 	commandBuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -501,12 +502,12 @@ void createCommandBuffer() {
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.graphicsPipeline);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p.graphicsPipeline);
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 			//vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p.pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
 			vkCmdDraw(commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 			//vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
@@ -718,6 +719,7 @@ void initVulkan() {
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
 	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest);
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
@@ -733,7 +735,8 @@ void initVulkan() {
 
 	createDescriptorPool();
 	createDescriptorSets();
-	createCommandBuffer();
+	createCommandBuffer(pipe);
+	createCommandBuffer(pipeTest);
 	createSemaphores();
 }
 
@@ -747,10 +750,12 @@ void recreateSwapChain() {
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
 	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest);
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
-	createCommandBuffer();
+	createCommandBuffer(pipe);
+	createCommandBuffer(pipeTest);
 }
 
 
