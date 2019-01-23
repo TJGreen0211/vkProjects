@@ -52,6 +52,7 @@ struct texture_object {
 typedef struct pipelineResources {
 	VkPipelineLayout pipelineLayout;
 	VkPipeline graphicsPipeline;
+	VkCommandBuffer *commandBuffers;
 } pipelineResources;
 
 //typedef struct SwapchainImageResources {
@@ -91,7 +92,7 @@ uint32_t vertexIndices[12] = {
 };
 
 
-VkCommandBuffer *commandBuffers;
+
 GLFWwindow *window;
 
 VkDescriptorPool descriptorPool;
@@ -143,10 +144,12 @@ void cleanupSwapChain() {
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
 		vkDestroyFramebuffer(graphics.device, graphicsSwapchain.swapChainFramebuffers[i], NULL);
 	}
-	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphicsSwapchain.deviceImageCount, commandBuffers);
+	vkFreeCommandBuffers(graphics.device, graphics.commandPool, graphicsSwapchain.deviceImageCount, pipe.commandBuffers);
 
 	vkDestroyPipeline(graphics.device, pipe.graphicsPipeline, NULL);
+	vkDestroyPipeline(graphics.device, pipeTest.graphicsPipeline, NULL);
 	vkDestroyPipelineLayout(graphics.device, pipe.pipelineLayout, NULL);
+	vkDestroyPipelineLayout(graphics.device, pipeTest.pipelineLayout, NULL);
 	vkDestroyRenderPass(graphics.device, graphicsSwapchain.renderPass, NULL);
 
 	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
@@ -459,8 +462,8 @@ void createFramebuffers(VkDevice device, vkSwapchain *s, VkImageView depthImageV
 	}
 }
 
-void createCommandBuffer(pipelineResources p) {
-	commandBuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkCommandBuffer));
+void createCommandBuffer(pipelineResources *p) {
+	p->commandBuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.commandPool = graphics.commandPool,
@@ -468,7 +471,7 @@ void createCommandBuffer(pipelineResources p) {
 		.commandBufferCount = (uint32_t)graphicsSwapchain.deviceImageCount,
 	};
 
-	if(vkAllocateCommandBuffers(graphics.device, &allocInfo, commandBuffers) != VK_SUCCESS) {
+	if(vkAllocateCommandBuffers(graphics.device, &allocInfo, p->commandBuffers) != VK_SUCCESS) {
 		printf("Failed to allocate command buffers.\n");
 		cleanup();
 	}
@@ -479,7 +482,7 @@ void createCommandBuffer(pipelineResources p) {
 			.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
 			.pInheritanceInfo = NULL,
 		};
-		vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
+		vkBeginCommandBuffer(p->commandBuffers[i], &beginInfo);
 
 		VkRenderPassBeginInfo renderPassInfo = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -500,21 +503,21 @@ void createCommandBuffer(pipelineResources p) {
 		renderPassInfo.clearValueCount = 2;
 		renderPassInfo.pClearValues = clearValues;
 
-		vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(p->commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p.graphicsPipeline);
+			vkCmdBindPipeline(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->graphicsPipeline);
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
-			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			//vkCmdBindIndexBuffer(commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p.pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
-			vkCmdDraw(commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
-			//vkCmdDrawIndexed(commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
+			vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, vertexBuffers, offsets);
+			//vkCmdBindIndexBuffer(p->commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
+			vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			//vkCmdDrawIndexed(p->commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
 
-		vkCmdEndRenderPass(commandBuffers[i]);
+		vkCmdEndRenderPass(p->commandBuffers[i]);
 
-		if(vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+		if(vkEndCommandBuffer(p->commandBuffers[i]) != VK_SUCCESS) {
 			printf("Failed to record command buffer.\n");
 			cleanup();
 		}
@@ -735,8 +738,8 @@ void initVulkan() {
 
 	createDescriptorPool();
 	createDescriptorSets();
-	createCommandBuffer(pipe);
-	createCommandBuffer(pipeTest);
+	createCommandBuffer(&pipe);
+	createCommandBuffer(&pipeTest);
 	createSemaphores();
 }
 
@@ -754,8 +757,8 @@ void recreateSwapChain() {
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
-	createCommandBuffer(pipe);
-	createCommandBuffer(pipeTest);
+	createCommandBuffer(&pipe);
+	createCommandBuffer(&pipeTest);
 }
 
 
@@ -799,7 +802,7 @@ void drawFrame() {
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+	submitInfo.pCommandBuffers = &pipe.commandBuffers[imageIndex];
 
 	VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
 	submitInfo.signalSemaphoreCount = 1;
