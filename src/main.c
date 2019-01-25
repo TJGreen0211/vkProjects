@@ -74,6 +74,7 @@ typedef struct pipelineResources {
 vkGraphics graphics;
 vkSwapchain graphicsSwapchain;
 vkBuffer graphicsBuffer;
+vkBuffer bufferTest;
 vkTexture depthTexture;
 vkTexture imageTexture;
 
@@ -506,14 +507,20 @@ void createCommandBuffer(pipelineResources *p) {
 		vkCmdBeginRenderPass(p->commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			vkCmdBindPipeline(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->graphicsPipeline);
+
 			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
 			VkDeviceSize offsets[] = {0};
 			vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, vertexBuffers, offsets);
+			//vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, &vertexBuffers[1], offsets);
 			//vkCmdBindIndexBuffer(p->commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
-			vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber/3*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 			//vkCmdDrawIndexed(p->commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
-			//printf("(uint32_t)sizeof(vertices): %d\n", (uint32_t)sizeof(vertices)/sizeof(vertices[0]));
+
+			//VkBuffer vb2[] = {bufferTest.vertexBuffer};
+			//vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, vb, offsets);
+			//vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
+			//vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber/2*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 
 		vkCmdEndRenderPass(p->commandBuffers[i]);
 
@@ -735,6 +742,10 @@ void initVulkan() {
 	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &graphicsBuffer);
 	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
 	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
+
+	//createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &graphicsBuffer);
+	//createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
+	//createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
 
 	createDescriptorPool();
 	createDescriptorSets();
