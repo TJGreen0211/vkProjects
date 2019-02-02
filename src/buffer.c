@@ -93,47 +93,47 @@ void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize 
 	vkBindBufferMemory(vkDevice, *buffer, *bufferMemory, 0);
 }
 
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, vkBuffer *b) {
+void createVertexBuffer(vkGraphics g, vertexData *verts, unsigned int vertSize, vkBuffer *b) {
 	VkDeviceSize size = vertSize;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+	createBuffer(g.physicalDevice, g.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 
 	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	vkMapMemory(g.device, stagingBufferMemory, 0, size, 0, &data);
 	memcpy(data, verts, vertSize);
 	//printf("asdf: %zu\nS", sizeof(vertices));
 	//for(int i = 0; i < 15; i++) {
 	//	printf("%f\n", *((float *) ((char *) data + sizeof(float) * i)));
 	//	//printf("%f %f\n", testData->color.x, testData->color.y);
 	//}
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(g.device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->vertexBuffer, &b->vertexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, b->vertexBuffer, size);
+	createBuffer(g.physicalDevice, g.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->vertexBuffer, &b->vertexBufferMemory);
+	copyBuffer(g.device, g.commandPool, g.graphicsQueue, stagingBuffer, b->vertexBuffer, size);
 
-	vkDestroyBuffer(device, stagingBuffer, NULL);
-	vkFreeMemory(device, stagingBufferMemory, NULL);
+	vkDestroyBuffer(g.device, stagingBuffer, NULL);
+	vkFreeMemory(g.device, stagingBufferMemory, NULL);
 }
 
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint32_t *verts) {
+void createIndexBuffer(vkGraphics g, unsigned int vertSize, vkBuffer *b, uint32_t *verts) {
 	VkDeviceSize size = vertSize;
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
+	createBuffer(g.physicalDevice, g.device, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stagingBuffer, &stagingBufferMemory);
 
 	void *data;
-	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	vkMapMemory(g.device, stagingBufferMemory, 0, size, 0, &data);
 	memcpy(data, verts, vertSize);
-	vkUnmapMemory(device, stagingBufferMemory);
+	vkUnmapMemory(g.device, stagingBufferMemory);
 
-	createBuffer(physicalDevice, device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->indexBuffer, &b->indexBufferMemory);
-	copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, b->indexBuffer, size);
+	createBuffer(g.physicalDevice, g.device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &b->indexBuffer, &b->indexBufferMemory);
+	copyBuffer(g.device, g.commandPool, g.graphicsQueue, stagingBuffer, b->indexBuffer, size);
 
-	vkDestroyBuffer(device, stagingBuffer, NULL);
-	vkFreeMemory(device, stagingBufferMemory, NULL);
+	vkDestroyBuffer(g.device, stagingBuffer, NULL);
+	vkFreeMemory(g.device, stagingBufferMemory, NULL);
 }
 
 void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p) {
@@ -173,13 +173,13 @@ void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, m
 	//printf("\n");
 }
 
-void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, vkBuffer *b) {
+void createUniformBuffer(vkGraphics g, unsigned int imageCount, vkBuffer *b) {
 
 	VkDeviceSize bufferSize = sizeof(uniformBufferObject);
 	b->uniformBuffer = malloc(sizeof(VkBuffer)*imageCount);
 	b->uniformBufferMemory = malloc(sizeof(VkDeviceMemory)*imageCount);
 
 	for(unsigned int i = 0; i < imageCount; i++) {
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &b->uniformBuffer[i], &b->uniformBufferMemory[i]);
+		createBuffer(g.physicalDevice, g.device, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &b->uniformBuffer[i], &b->uniformBufferMemory[i]);
 	}
 }

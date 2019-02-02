@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <linearAlg.h>
 #include "arcballCamera.h"
+#include "device.h"
 
 
 typedef struct uniformBufferObject {
@@ -47,9 +48,9 @@ typedef struct vertexData {
 VkCommandBuffer beginSingleTimeCommands(VkDevice vkDevice, VkCommandPool pool);
 void endSingleTimeCommands(VkDevice vkDevice, VkQueue queue, VkCommandBuffer commandBuffer, VkCommandPool pool);
 void createBuffer(VkPhysicalDevice physicalDev, VkDevice vkDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer *buffer, VkDeviceMemory *bufferMemory);
-void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue, vertexData *verts, unsigned int vertSize, vkBuffer *b);
-void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int vertSize, VkCommandPool commandPool, VkQueue graphicsQueue, vkBuffer *b, uint32_t *verts);
+void createVertexBuffer(vkGraphics g, vertexData *verts, unsigned int vertSize, vkBuffer *b);
+void createIndexBuffer(vkGraphics g, unsigned int vertSize, vkBuffer *b, uint32_t *verts);
 void updateUniformBuffer(VkDevice device, VkDeviceMemory bufferMemory, mat4 m, mat4 v, mat4 p);
-void createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, unsigned int imageCount, vkBuffer *b);
+void createUniformBuffer(vkGraphics, unsigned int imageCount, vkBuffer *b);
 
 #endif

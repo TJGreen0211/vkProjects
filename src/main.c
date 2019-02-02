@@ -488,6 +488,10 @@ void createFramebuffers(VkDevice device, vkSwapchain *s, VkImageView depthImageV
 	}
 }
 
+void drawObject(pipelineResources *p, unsigned int num, VkBuffer *vertexBuffers, VkDescriptorSet **descriptorSetsArr) {
+
+}
+
 void createCommandBuffer(pipelineResources *p) {
 	p->commandBuffers = malloc(graphicsSwapchain.deviceImageCount*sizeof(VkCommandBuffer));
 	VkCommandBufferAllocateInfo allocInfo = {
@@ -533,19 +537,18 @@ void createCommandBuffer(pipelineResources *p) {
 
 			vkCmdBindPipeline(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->graphicsPipeline);
 
-			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer};
-			VkDeviceSize offsets[] = {0};
-			vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, vertexBuffers, offsets);
-			//vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, &vertexBuffers[1], offsets);
-			//vkCmdBindIndexBuffer(p->commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSets[i], 0, NULL);
-			vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber/3*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
-			//vkCmdDrawIndexed(p->commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
+			VkBuffer vertexBuffers[] = {graphicsBuffer.vertexBuffer, bufferTest.vertexBuffer};
+			VkDescriptorSet *descriptorSetsArr[] = {descriptorSets, newDescriptor};
+			//drawObject(p, 2, vertexBuffers, descriptorSetsArr);
 
-			VkBuffer vb2[] = {bufferTest.vertexBuffer};
-			vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, vb2, offsets);
-			vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &newDescriptor[i], 0, NULL);
-			vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			VkDeviceSize offsets[] = {0};
+			for(int j = 0; j < 2; j++) {
+				vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, &vertexBuffers[j], offsets);
+				vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSetsArr[j][i], 0, NULL);
+				vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber/(j+1)*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+			}
+			//vkCmdBindIndexBuffer(p->commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			//vkCmdDrawIndexed(p->commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(p->commandBuffers[i]);
 
@@ -567,26 +570,48 @@ void createSemaphores() {
 	}
 }
 
-void createDescriptorSets(VkDescriptorSet **ds, vkBuffer buff, VkDescriptorPool pool) {
-	VkDescriptorSetLayout *layouts;
-	layouts = malloc(sizeof(VkDescriptorSetLayout)*graphicsSwapchain.deviceImageCount);
+void createDescriptorPool(VkDevice device, VkDescriptorPool *pool, unsigned int imageCount) {
 
-	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
-		layouts[i] = graphics.descriptorSetLayout;
+	VkDescriptorPoolSize *poolSizes = malloc(2*sizeof(VkDescriptorPoolSize));
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = imageCount;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = imageCount;
+
+	VkDescriptorPoolCreateInfo poolInfo = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.poolSizeCount = 2,
+		.pPoolSizes = poolSizes,
+		.maxSets = imageCount,
+	};
+
+	if(vkCreateDescriptorPool(device, &poolInfo, NULL, pool) != VK_SUCCESS) {
+		printf("Failed to create descriptor pool.");
+		cleanup();
+	}
+}
+
+void createDescriptorSets(vkGraphics g, VkDescriptorSet **ds, vkBuffer buff, VkDescriptorPool *pool, unsigned int imageCount) {
+	createDescriptorPool(g.device, pool, imageCount);
+	VkDescriptorSetLayout *layouts;
+	layouts = malloc(sizeof(VkDescriptorSetLayout)*imageCount);
+
+	for(unsigned int i = 0; i < imageCount; i++) {
+		layouts[i] = g.descriptorSetLayout;
 	}
 	VkDescriptorSetAllocateInfo allocInfo = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool = pool,
-		.descriptorSetCount = graphicsSwapchain.deviceImageCount,
+		.descriptorPool = *pool,
+		.descriptorSetCount = imageCount,
 		.pSetLayouts = layouts,
 	};
 
-	VkDescriptorSet *retval = malloc(sizeof(VkDescriptorSet)*graphicsSwapchain.deviceImageCount);
-	if(vkAllocateDescriptorSets(graphics.device, &allocInfo, retval) != VK_SUCCESS) {
+	VkDescriptorSet *retval = malloc(sizeof(VkDescriptorSet)*imageCount);
+	if(vkAllocateDescriptorSets(g.device, &allocInfo, retval) != VK_SUCCESS) {
 		printf("Failed to allocate descriptor sets.");
 	}
 
-	for(unsigned int i = 0; i < graphicsSwapchain.deviceImageCount; i++) {
+	for(unsigned int i = 0; i < imageCount; i++) {
 		VkDescriptorBufferInfo bufferInfo = {
 			.buffer = buff.uniformBuffer[i],
 			.offset = 0,
@@ -601,8 +626,8 @@ void createDescriptorSets(VkDescriptorSet **ds, vkBuffer buff, VkDescriptorPool 
 
 		VkDescriptorImageInfo imageInfo = {
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			.imageView = graphics.textureImageView,
-			.sampler = graphics.textureSampler,
+			.imageView = g.textureImageView,
+			.sampler = g.textureSampler,
 		};
 
 		VkWriteDescriptorSet descriptorWrite = {
@@ -631,30 +656,9 @@ void createDescriptorSets(VkDescriptorSet **ds, vkBuffer buff, VkDescriptorPool 
 		descriptorWrites[0] = descriptorWrite;
 		descriptorWrites[1] = descriptorWriteImage;
 
-		vkUpdateDescriptorSets(graphics.device, 2, descriptorWrites, 0, NULL);
+		vkUpdateDescriptorSets(g.device, 2, descriptorWrites, 0, NULL);
 	}
 	*ds = retval;
-}
-
-void createDescriptorPool(VkDescriptorPool *pool) {
-
-	VkDescriptorPoolSize *poolSizes = malloc(2*sizeof(VkDescriptorPoolSize));
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = graphicsSwapchain.deviceImageCount;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = graphicsSwapchain.deviceImageCount;
-
-	VkDescriptorPoolCreateInfo poolInfo = {
-		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-		.poolSizeCount = 2,
-		.pPoolSizes = poolSizes,
-		.maxSets = graphicsSwapchain.deviceImageCount,
-	};
-
-	if(vkCreateDescriptorPool(graphics.device, &poolInfo, NULL, pool) != VK_SUCCESS) {
-		printf("Failed to create descriptor pool.");
-		cleanup();
-	}
 }
 
 void createTextureImageView(VkDevice device, VkImage textureImage) {
@@ -752,6 +756,12 @@ void loadModel() {
 	}
 }
 
+void initializeBufferObject(vkGraphics g, vkBuffer *b, unsigned int imageCount) {
+	createVertexBuffer(g, vertex, cube.vertexNumber*sizeof(vertexData), b);
+	createIndexBuffer(g, sizeof(vertexIndices), b, vertexIndices);
+	createUniformBuffer(g, imageCount, b);
+}
+
 void initVulkan() {
 	createInstance(enableValidationLayers, &graphics.instance);
 	setupDebugCallback();
@@ -771,18 +781,11 @@ void initVulkan() {
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
 	loadModel();
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &graphicsBuffer);
-	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &graphicsBuffer, vertexIndices);
-	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &graphicsBuffer);
+	initializeBufferObject(graphics, &graphicsBuffer, graphicsSwapchain.deviceImageCount);
+	initializeBufferObject(graphics, &bufferTest, graphicsSwapchain.deviceImageCount);
 
-	createVertexBuffer(graphics.device, graphics.physicalDevice, graphics.commandPool, graphics.graphicsQueue, vertex, cube.vertexNumber*sizeof(vertexData), &bufferTest);
-	createIndexBuffer(graphics.device, graphics.physicalDevice, sizeof(vertexIndices), graphics.commandPool, graphics.graphicsQueue, &bufferTest, vertexIndices);
-	createUniformBuffer(graphics.device, graphics.physicalDevice, graphicsSwapchain.deviceImageCount, &bufferTest);
-
-	createDescriptorPool(&descriptorPool);
-	createDescriptorPool(&newPool);
-	createDescriptorSets(&descriptorSets, graphicsBuffer, descriptorPool);
-	createDescriptorSets(&newDescriptor, bufferTest, newPool);
+	createDescriptorSets(graphics, &descriptorSets, graphicsBuffer, &descriptorPool, graphicsSwapchain.deviceImageCount);
+	createDescriptorSets(graphics, &newDescriptor, bufferTest, &newPool, graphicsSwapchain.deviceImageCount);
 	createCommandBuffer(&pipe);
 	createCommandBuffer(&pipeTest);
 	createSemaphores();
