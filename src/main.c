@@ -2,7 +2,6 @@
 
 #include <windows.h>
 #include <GLFW/glfw3.h>
-#include <tinyobj/tinyobj_loader_c.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -21,6 +20,7 @@
 #include "shader.h"
 #include "sphere.h"
 #include "quadCube.h"
+#include "loadObject.h"
 
 
 #define _CRT_SECURE_NO_DEPRECATE 1
@@ -674,23 +674,11 @@ void createDepthResources(vkTexture *t) {
 
 	transitionImageLayout(graphics.device, graphics.commandPool, graphics.graphicsQueue, t->image, t->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
-	}
+}
 
 void loadModel() {
-	//tinyobj_attrib_t attrib;
-	//tinyobj_shape_t *shapes;
-	//tinyobj_material_t *material;
-	//size_t numMaterials;
-	//size_t numShapes;
-	//size_t dataLen = 0;
 
-	//const char *data = get_file_data(&dataLen, "");
-	//if(data == NULL) {
-	//	printf("Failed to load object file.");
-	//	exit("-1")
-	//}
-
-		newSphere = tetrahedron(4, &newSphere);
+	newSphere = tetrahedron(4, &newSphere);
 	//int size;
 	//int nsize;
 	//vec3 *points;
@@ -781,6 +769,7 @@ void initVulkan() {
 	createTextureSampler(graphics.device, &graphics.textureSampler);
 
 	loadModel();
+	//loadObject("conc.obj");
 	initializeBufferObject(graphics, &graphicsBuffer, graphicsSwapchain.deviceImageCount);
 	initializeBufferObject(graphics, &bufferTest, graphicsSwapchain.deviceImageCount);
 

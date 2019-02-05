@@ -14,11 +14,12 @@ SRCS = Main.c \
 	textures.c \
 	shader.c \
 	sphere.c \
-	quadCube.c
+	quadCube.c \
+	loadObject.c
 
 MAKE_DIR = %cd%
 #SRCS := $(shell echo dir1/*.c)
-INCLUDE_PATHS = -I "..\dependencies\lib" -I "..\dependencies\include" -I "..\dependencies\include\vulkan"
+INCLUDE_PATHS = -I "..\assets" -I "..\dependencies\lib" -I "..\dependencies\include" -I "..\dependencies\include\vulkan"
 INCLUDE_PATHS = $(INCLUDE_PATHS) -I $(MAKE_DIR)
 LIBS = C:\Users\TJ\Documents\programming\vulkan\dependencies\lib\glfw3dll.lib C:\Users\TJ\Documents\programming\vulkan\dependencies\lib\SOIL.lib C:\Users\TJ\Documents\programming\vulkan\dependencies\lib\vulkan-1.lib C:\Users\TJ\Documents\programming\vkProjects\dependencies\lib\freetype.lib
 
