@@ -545,7 +545,7 @@ void createCommandBuffer(pipelineResources *p) {
 			for(int j = 0; j < 2; j++) {
 				vkCmdBindVertexBuffers(p->commandBuffers[i], 0, 1, &vertexBuffers[j], offsets);
 				vkCmdBindDescriptorSets(p->commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, p->pipelineLayout, 0, 1, &descriptorSetsArr[j][i], 0, NULL);
-				vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber/(j+1)*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
+				vkCmdDraw(p->commandBuffers[i], (uint32_t)(cube.vertexNumber*sizeof(vertexData)/sizeof(vertex[0])), 1, 0, 0);
 			}
 			//vkCmdBindIndexBuffer(p->commandBuffers[i], graphicsBuffer.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			//vkCmdDrawIndexed(p->commandBuffers[i], (uint32_t)(sizeof(vertexIndices)/sizeof(vertexIndices[0])), 1, 0, 0, 0);
@@ -748,6 +748,7 @@ void initializeBufferObject(vkGraphics g, vkBuffer *b, unsigned int imageCount) 
 	createVertexBuffer(g, vertex, cube.vertexNumber*sizeof(vertexData), b);
 	createIndexBuffer(g, sizeof(vertexIndices), b, vertexIndices);
 	createUniformBuffer(g, imageCount, b);
+	createDescriptorSets(graphics, &descriptorSets, graphicsBuffer, &descriptorPool, graphicsSwapchain.deviceImageCount);
 }
 
 void initVulkan() {
@@ -773,7 +774,7 @@ void initVulkan() {
 	initializeBufferObject(graphics, &graphicsBuffer, graphicsSwapchain.deviceImageCount);
 	initializeBufferObject(graphics, &bufferTest, graphicsSwapchain.deviceImageCount);
 
-	createDescriptorSets(graphics, &descriptorSets, graphicsBuffer, &descriptorPool, graphicsSwapchain.deviceImageCount);
+
 	createDescriptorSets(graphics, &newDescriptor, bufferTest, &newPool, graphicsSwapchain.deviceImageCount);
 	createCommandBuffer(&pipe);
 	createCommandBuffer(&pipeTest);
@@ -803,7 +804,7 @@ static void onWindowResized(GLFWwindow *window, int width, int height) {
 	recreateSwapChain();
 }
 
-void drawFrame() {
+void drawFrame(pipelineResources *pr, double delta) {
 
 	double currentFrame = glfwGetTime();
 	deltaTime = currentFrame - lastFrame;
@@ -828,7 +829,14 @@ void drawFrame() {
 	mat4 p = perspective(45.0, graphicsSwapchain.swapChainExtent.width / graphicsSwapchain.swapChainExtent.height, 0.1, 100000);
 	//p.m[1][1] *= -1;
 	updateUniformBuffer(graphics.device, graphicsBuffer.uniformBufferMemory[imageIndex], m, v, p);
-	updateUniformBuffer(graphics.device, bufferTest.uniformBufferMemory[imageIndex], m, v, p);
+
+	vec3 translation;
+	translation.x = (2.0) * cos(delta/10.0);
+	translation.y = 0.0;
+	translation.z = (2.0) * sin(delta/10.0);
+	mat4 pos = multiplymat4(multiplymat4(multiplymat4(m, translatevec3(translation)), scale(0.2)),rotateX(90.0));
+
+	updateUniformBuffer(graphics.device, bufferTest.uniformBufferMemory[imageIndex], pos, v, p);
 	doMovement(deltaTime);
 
 	VkSubmitInfo submitInfo = {
@@ -840,7 +848,7 @@ void drawFrame() {
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &pipe.commandBuffers[imageIndex];
+	submitInfo.pCommandBuffers = &pr->commandBuffers[imageIndex];
 
 	VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
 	submitInfo.signalSemaphoreCount = 1;
@@ -876,11 +884,13 @@ void drawFrame() {
 }
 
 void mainLoop() {
+	double delta = 0.0;
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
+		delta+= 0.01;
 
-		drawFrame();
+		drawFrame(&pipe, delta);
 	}
 	vkDeviceWaitIdle(graphics.device);
 }
