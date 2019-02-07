@@ -278,11 +278,11 @@ VkFormat findDepthFormat() {
 	return findSupportedFormat(candidates, 3, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
-void createGraphicsPipeline(VkDevice device, VkDescriptorSetLayout *descriptorSetLayout, vkSwapchain *s, pipelineResources *p) {
+void createGraphicsPipeline(VkDevice device, VkDescriptorSetLayout *descriptorSetLayout, vkSwapchain *s, pipelineResources *p, char *vert, char *frag) {
 
 	size_t vertSize, fragSize;
-	char *vertShaderCode = readShader("shaders/vert.spv", &vertSize);
-	char *fragShaderCode = readShader("shaders/frag.spv", &fragSize);
+	char *vertShaderCode = readShader(vert, &vertSize);
+	char *fragShaderCode = readShader(frag, &fragSize);
 
 	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode, vertSize);
 	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode, fragSize);
@@ -748,19 +748,20 @@ void initializeBufferObject(vkGraphics g, vkBuffer *b, unsigned int imageCount) 
 	createVertexBuffer(g, vertex, cube.vertexNumber*sizeof(vertexData), b);
 	createIndexBuffer(g, sizeof(vertexIndices), b, vertexIndices);
 	createUniformBuffer(g, imageCount, b);
-	createDescriptorSets(graphics, &descriptorSets, graphicsBuffer, &descriptorPool, graphicsSwapchain.deviceImageCount);
 }
 
-void initVulkan() {
+void initializeRenderer() {
 	createInstance(enableValidationLayers, &graphics.instance);
 	setupDebugCallback();
 	createSurface(graphics.instance, &graphics.surface, window);
-
 	initGraphics(&graphics);
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
+}
 
-	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
-	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest);
+void initVulkan() {
+
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe, "shaders/vert.spv", "shaders/frag.spv");
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest, "shaders/vert.spv", "shaders/frag.spv");
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
@@ -774,7 +775,7 @@ void initVulkan() {
 	initializeBufferObject(graphics, &graphicsBuffer, graphicsSwapchain.deviceImageCount);
 	initializeBufferObject(graphics, &bufferTest, graphicsSwapchain.deviceImageCount);
 
-
+	createDescriptorSets(graphics, &descriptorSets, graphicsBuffer, &descriptorPool, graphicsSwapchain.deviceImageCount);
 	createDescriptorSets(graphics, &newDescriptor, bufferTest, &newPool, graphicsSwapchain.deviceImageCount);
 	createCommandBuffer(&pipe);
 	createCommandBuffer(&pipeTest);
@@ -790,8 +791,8 @@ void recreateSwapChain() {
 	cleanupSwapChain();
 	initSwapChainRenderPass(graphics.device, graphics.physicalDevice, graphics.surface, &graphicsSwapchain, window, findDepthFormat());
 
-	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe);
-	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest);
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipe, "shaders/vert.spv", "shaders/frag.spv");
+	createGraphicsPipeline(graphics.device, &graphics.descriptorSetLayout, &graphicsSwapchain, &pipeTest, "shaders/vert.spv", "shaders/frag.spv");
 
 	createDepthResources(&depthTexture);
 	createFramebuffers(graphics.device, &graphicsSwapchain, depthTexture.imageView);
@@ -908,6 +909,7 @@ void run() {
 		printf("Vulkan not supported.");
 		cleanup();
 	}
+	initializeRenderer();
 	initVulkan();
 	mainLoop();
 
